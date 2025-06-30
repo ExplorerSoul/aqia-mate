@@ -1,0 +1,161 @@
+/* styles.css */
+
+/* ========== Global Reset ========== */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', sans-serif;
+  background-color: #f9f9fb;
+  color: #333;
+  padding: 8rem;
+  line-height: 1.6;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* ========== Onboarding Page ========== */
+.onboarding-container {
+  max-width: 700px;
+  margin: auto;
+  padding: 2rem;
+  background: linear-gradient(to bottom left, #befdee, white, #fecbfe);
+  animation: gradient-x 4s ease infinite;
+  background-size: 200% 200%;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.onboarding-container label {
+  font-weight: 600;
+}
+
+.onboarding-container input,
+.onboarding-container select {
+  padding: 0.5rem;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 1rem;
+}
+
+.onboarding-container button {
+  padding: 0.75rem 1rem;
+  font-size: 1rem;
+  background: linear-gradient(135deg, #ec4899 0%, #217ffb 100%);
+  animation: gradient-x 6s ease infinite;
+  background-size: 200% 200%;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  margin-top: 1rem;
+  transition: background 0.3s ease;
+}
+
+.onboarding-container button:hover {
+  background: linear-gradient(135deg, #217ffb 0%, #ec4899 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(102, 126, 234, 0.3);
+}
+
+/* ========== Interview Flow ========== */
+.interview-container {
+  max-width: 700px;
+  margin: auto;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.interview-container h2 {
+  margin-bottom: 1rem;
+}
+
+.interview-container button {
+  margin-top: 1rem;
+  padding: 0.5rem 1.25rem;
+  background: #28a745;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  cursor: pointer;
+}
+
+.interview-container button:disabled {
+  background: #ccc;
+  cursor: not-allowed;
+}
+
+.interview-container p {
+  margin: 0.5rem 0;
+}
+
+/* ========== Final Review Page ========== */
+.final-review-container {
+  max-width: 700px;
+  margin: auto;
+  padding: 2rem;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.05);
+}
+
+.final-review-container h2 {
+  margin-bottom: 1rem;
+}
+
+.final-review-container ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.final-review-container li {
+  margin-bottom: 1rem;
+  line-height: 1.4;
+}
+
+.final-review-container pre {
+  background-color: #f0f0f0;
+  padding: 1rem;
+  border-radius: 8px;
+  white-space: pre-wrap;
+  font-family: monospace;
+  overflow-x: auto;
+}
+
+/* ========== ResumeParser Component ========== */
+.resume-parser {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+/* ========== Mic Input ========== */
+.mic-input button {
+  padding: 0.5rem 1rem;
+  font-size: 1rem;
+  background: #007bff;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.mic-input button:hover {
+  background-color: #0056b3;
+}
+
+/* ========== Voice Output ========== */
+.voice-output p {
+  font-size: 1.1rem;
+  margin: 0.5rem 0;
+}
