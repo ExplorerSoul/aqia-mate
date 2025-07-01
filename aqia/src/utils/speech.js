@@ -1,4 +1,3 @@
-// /utils/speech.js
 class SpeechService {
   constructor() {
     this.recognition = null;
@@ -6,12 +5,11 @@ class SpeechService {
     this.isListening = false;
     this.isSpeaking = false;
     this.voices = [];
-    
+
     this.initializeSpeechRecognition();
     this.loadVoices();
   }
 
-  // Initialize speech recognition
   initializeSpeechRecognition() {
     if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
       throw new Error('Speech recognition not supported in this browser');
@@ -19,61 +17,46 @@ class SpeechService {
 
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     this.recognition = new SpeechRecognition();
-    
+
     this.recognition.continuous = false;
     this.recognition.interimResults = false;
     this.recognition.lang = 'en-US';
     this.recognition.maxAlternatives = 1;
   }
 
-  // Load available voices
- loadVoices() {
+  loadVoices() {
     const load = () => {
       const voices = this.synthesis.getVoices();
-      if (voices.length > 0) {
-        this.voices = voices;
-      }
+      if (voices.length > 0) this.voices = voices;
     };
 
     load(); // Try immediately
 
-    // Listen again if not loaded
     if (this.voices.length === 0) {
       this.synthesis.addEventListener('voiceschanged', load);
     }
   }
 
-
-  // Get a professional voice (prefer female, English)
   getPreferredVoice() {
-    // Try to find a good English voice
-    const englishVoices = this.voices.filter(voice => 
-      voice.lang.startsWith('en') && voice.name.includes('Female')
+    const englishVoices = this.voices.filter(
+      voice => voice.lang.startsWith('en') && voice.name.toLowerCase().includes('female')
     );
-    
-    if (englishVoices.length > 0) {
-      return englishVoices[0];
-    }
-    
-    // Fallback to any English voice
-    const anyEnglish = this.voices.find(voice => voice.lang.startsWith('en'));
-    return anyEnglish || this.voices[0];
+    return englishVoices[0] || this.voices.find(v => v.lang.startsWith('en')) || this.voices[0];
   }
 
-  // Text-to-speech
   async speak(text) {
     return new Promise((resolve, reject) => {
+      if (!text || typeof text !== 'string') return resolve();
+
       if (this.isSpeaking) {
         this.synthesis.cancel();
+        this.isSpeaking = false;
       }
 
       const utterance = new SpeechSynthesisUtterance(text);
-      const preferredVoice = this.getPreferredVoice();
-      
-      if (preferredVoice) {
-        utterance.voice = preferredVoice;
-      }
-      
+      const voice = this.getPreferredVoice();
+      if (voice) utterance.voice = voice;
+
       utterance.rate = 0.9;
       utterance.pitch = 1.0;
       utterance.volume = 0.8;
@@ -87,16 +70,15 @@ class SpeechService {
         resolve();
       };
 
-      utterance.onerror = (error) => {
+      utterance.onerror = (err) => {
         this.isSpeaking = false;
-        reject(error);
+        reject(err);
       };
 
       this.synthesis.speak(utterance);
     });
   }
 
-  // Stop speaking
   stopSpeaking() {
     if (this.isSpeaking) {
       this.synthesis.cancel();
@@ -104,56 +86,82 @@ class SpeechService {
     }
   }
 
-  // Start listening for speech
-  async startListening(timeout = 10000) {
+  async startListening(idleTimeout = null, maxTotalTime = null) {
     return new Promise((resolve, reject) => {
       if (this.isListening) return;
 
-      let timeoutId;
+      let idleTimer = null;
+      let totalTimer = null;
 
       this.recognition.onstart = () => {
         this.isListening = true;
-        timeoutId = setTimeout(() => {
-          this.stopListening();
-          reject(new Error('Listening timeout'));
-        }, timeout);
+
+        // Optional: Idle timeout (e.g., no voice for 20s)
+        if (idleTimeout) {
+          idleTimer = setTimeout(() => {
+            this.stopListening();
+            reject(new Error('Idle timeout: No speech detected.'));
+          }, idleTimeout);
+        }
+
+        // Optional: Max total listening time
+        if (maxTotalTime) {
+          totalTimer = setTimeout(() => {
+            this.stopListening();
+            reject(new Error('Max listen time exceeded.'));
+          }, maxTotalTime);
+        }
       };
 
       this.recognition.onresult = (event) => {
-        clearTimeout(timeoutId);
-        const transcript = event.results[0][0].transcript;
-        resolve(transcript);
+        clearTimeout(idleTimer);
+        clearTimeout(totalTimer);
+
+        const transcript = event.results?.[0]?.[0]?.transcript;
+        this.isListening = false;
+
+        if (!transcript || transcript.trim() === '') {
+          reject(new Error('No speech detected.'));
+        } else {
+          resolve(transcript.trim());
+        }
       };
 
       this.recognition.onend = () => {
         this.isListening = false;
-        clearTimeout(timeoutId);
+        clearTimeout(idleTimer);
+        clearTimeout(totalTimer);
       };
 
-      this.recognition.onerror = (error) => {
-        clearTimeout(timeoutId);
+      this.recognition.onerror = (err) => {
         this.isListening = false;
-        reject(error);
+        clearTimeout(idleTimer);
+        clearTimeout(totalTimer);
+        reject(err);
       };
 
-      this.recognition.start();
+      try {
+        this.recognition.start();
+      } catch (err) {
+        reject(new Error('Failed to start speech recognition.'));
+      }
     });
   }
 
-
-  // Stop listening
   stopListening() {
     if (this.isListening) {
-      this.recognition.stop();
+      try {
+        this.recognition.stop();
+      } catch (err) {
+        console.warn('Speech recognition stop error:', err);
+      }
       this.isListening = false;
     }
   }
 
-  // Check if browser supports speech features
   static isSupported() {
     const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
     const speechSynthesisSupported = 'speechSynthesis' in window;
-    
     return {
       recognition: speechRecognitionSupported,
       synthesis: speechSynthesisSupported,
@@ -161,11 +169,10 @@ class SpeechService {
     };
   }
 
-  // Get microphone permission
   static async requestMicrophonePermission() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop()); // Stop the stream
+      stream.getTracks().forEach(track => track.stop());
       return true;
     } catch (error) {
       console.error('Microphone permission denied:', error);
@@ -174,6 +181,6 @@ class SpeechService {
   }
 }
 
-// Optionally at the end:
+// ✅ Export singleton instance
 const speechService = new SpeechService();
 export default speechService;

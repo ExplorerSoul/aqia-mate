@@ -15,7 +15,7 @@ const ResumeParser = ({ onParse }) => {
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || file.type !== 'application/pdf') {
-      alert('Please upload a valid PDF file.');
+      alert('❌ Please upload a valid PDF file.');
       return;
     }
 
@@ -36,23 +36,37 @@ const ResumeParser = ({ onParse }) => {
           text += pageText + '\n';
         }
 
-        setLoading(false);
-        onParse(text.trim()); // Send parsed text to parent
+        onParse(text.trim());
       } catch (error) {
-        console.error('PDF parsing error:', error);
-        setLoading(false);
+        console.error('❌ PDF parsing error:', error);
         alert('Error parsing resume.');
+        onParse(null);
+        setFileName('');
+      } finally {
+        setLoading(false);
       }
+    };
+
+    reader.onerror = () => {
+      alert('❌ Error reading file.');
+      onParse(null);
+      setFileName('');
+      setLoading(false);
     };
   };
 
   return (
     <div className="resume-parser">
-      <label>📄 Upload Resume (PDF):</label>
-      <input type="file" accept="application/pdf" onChange={handleFileUpload} />
+      <label>📄 Upload Resume (PDF Only):</label>
+      <input
+        type="file"
+        accept="application/pdf"
+        onChange={handleFileUpload}
+        disabled={loading}
+      />
 
       {loading && <p>⏳ Parsing resume...</p>}
-      {fileName && !loading && <p>✅ {fileName} uploaded</p>}
+      {fileName && !loading && <p>✅ <strong>{fileName}</strong> uploaded</p>}
     </div>
   );
 };

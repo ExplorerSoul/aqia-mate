@@ -88,55 +88,9 @@ class PromptBuilder {
     };
   }
 
-  buildSystemPrompt(domain, resumeText) {
-    const template = this.domainTemplates[domain];
-    if (!template) throw new Error(`Unsupported domain: ${domain}`);
-
-    const resumeAnalysis = this.analyzeResume(resumeText);
-
-    return `You are a senior professional interviewer conducting a ${domain} interview. You have extensive experience in hiring for this role and understand what makes a strong candidate.
-
-CANDIDATE'S RESUME:
-${resumeText.trim()}
-
-INTERVIEW STRUCTURE:
-Conduct exactly 10 questions in this sequence:
-
-1. INTRODUCTION (1 question):
-   - "Tell me about yourself and what drew you to this ${domain} role"
-
-2. SKILL-BASED QUESTIONS (3 questions):
-   Focus on: ${template.focus}
-   - ${template.skillQuestions.join('\n   - ')}
-
-3. DEEP-DIVE TECHNICAL QUESTIONS (4 questions):
-   - ${template.deepDive.join('\n   - ')}
-
-4. PROJECT-SPECIFIC QUESTIONS (2 questions):
-   Based on projects mentioned in their resume: ${resumeAnalysis.projects.join(', ') || 'N/A'}
-
-INTERVIEW GUIDELINES:
-- Ask ONE question at a time
-- Keep questions conversational but professional
-- Tailor questions using their experience and skills
-- Emphasize: ${resumeAnalysis.keySkills.join(', ') || 'general domain knowledge'}
-- Candidate is likely at a(n) ${resumeAnalysis.experience} level
-
-EVALUATION CRITERIA:
-After the 10th question, provide a detailed review:
-- Overall Score: X/10
-- Key Strengths
-- Areas for Improvement
-- Final Recommendation
-- Polite Closing
-
-Begin with a warm greeting and the first question.`;
-  }
-
   analyzeResume(resumeText) {
     const text = resumeText.toLowerCase();
 
-    // Experience extraction
     let experience = 'entry-level';
     if (/senior|lead|principal/.test(text)) {
       experience = 'senior-level';
@@ -144,7 +98,6 @@ Begin with a warm greeting and the first question.`;
       experience = 'mid-level';
     }
 
-    // Skill extraction
     const skillKeywords = [
       'javascript', 'python', 'java', 'react', 'node.js', 'sql', 'aws', 'docker',
       'machine learning', 'data analysis', 'tableau', 'excel', 'powerbi',
@@ -153,17 +106,18 @@ Begin with a warm greeting and the first question.`;
       'sales', 'crm', 'salesforce', 'pipeline', 'negotiation'
     ];
 
-    const keySkills = skillKeywords.filter(skill => text.includes(skill));
+    const keySkills = skillKeywords.filter(skill =>
+      text.includes(skill.toLowerCase())
+    );
 
-    // Project extraction
     const projectKeywords = ['project', 'built', 'developed', 'created', 'implemented', 'designed'];
     const projects = [];
 
-    const sentences = resumeText.split(/[.!?]+/);
+    const sentences = resumeText.split(/[.!?\n]+/);
     for (let sentence of sentences) {
       if (projectKeywords.some(k => sentence.toLowerCase().includes(k))) {
         const clean = sentence.trim();
-        if (clean.length >= 30 && clean.length <= 200) {
+        if (clean.length >= 30 && clean.length <= 250) {
           projects.push(clean);
         }
       }
@@ -177,23 +131,23 @@ Begin with a warm greeting and the first question.`;
   }
 
   buildEvaluationPrompt(conversationHistory, domain) {
-    return `You are evaluating a ${domain} interview. Based on the conversation, provide a detailed assessment.
+    return `You are evaluating a ${domain} interview. Based on the following conversation, provide a detailed assessment.
 
-INTERVIEW DIALOGUE:
+INTERVIEW CONVERSATION:
 ${conversationHistory.map(msg => `${msg.speaker}: ${msg.content}`).join('\n')}
 
 EVALUATION FORMAT:
 Score: X/10
 
 Strengths:
-- (List 3-4)
+- (List 3–4)
 
 Areas for Improvement:
-- (List 2-3)
+- (List 2–3)
 
-Recommendation: (Strong Hire / Hire / No Hire)
+Final Recommendation: Strong Hire / Hire / No Hire
 
-Closing: Thank the candidate and summarize next steps.`;
+Closing Message: Thank the candidate politely and suggest next steps.`;
   }
 
   getAvailableDomains() {

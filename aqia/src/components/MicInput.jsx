@@ -1,32 +1,27 @@
-import React, { useState } from 'react';
-import SpeechService from '../utils/speech';
+import './MicInput.css';
 
-const MicInput = ({ onResult }) => {
-  const [listening, setListening] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleMicClick = async () => {
-    if (listening) return;
-
-    setListening(true);
-    setError('');
-
-    try {
-      const transcript = await SpeechService.startListening(10000); // 10s timeout
-      onResult(transcript); // Send transcript to parent
-    } catch (err) {
-      console.error('Mic error:', err);
-      setError('Could not capture voice. Try again.');
-    }
-
-    setListening(false);
-  };
-
+const MicInput = ({ listening, speaking, error, onStopListening, onResumeListening }) => {
   return (
     <div className="mic-input">
-      <button onClick={handleMicClick} disabled={listening}>
-        🎙️ {listening ? 'Listening...' : 'Speak Answer'}
+      <button disabled>
+        🎙️ {listening ? 'Listening...' : 'Waiting...'}
       </button>
+
+      {listening && !speaking && (
+        <div className="waveform">
+          <span></span><span></span><span></span><span></span><span></span>
+          <button className="stop-btn" onClick={onStopListening}>
+            ⏹️ Pause Mic
+          </button>
+        </div>
+      )}
+
+      {!listening && !speaking && (
+        <button onClick={onResumeListening}>
+          🎙 Resume Mic
+        </button>
+      )}
+
       {error && <p style={{ color: 'red' }}>{error}</p>}
     </div>
   );
