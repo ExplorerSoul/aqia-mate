@@ -1,12 +1,33 @@
-# React + Vite
+# 🧠 AQIA Mate – AI Voice Interviewer
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A smart, voice-based mock interview platform powered by **Groq LLaMA-3** and the **Web Speech API**.  
+It simulates a professional interviewer, asks domain-specific questions based on your resume, and evaluates your performance — all through voice.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🎯 Features
 
-## Expanding the ESLint configuration
+- 🎤 **Mic-based Q&A**: Answer questions using your voice (SpeechRecognition)
+- 📄 **Resume-aware questions**: Upload your resume to guide the AI's questions
+- 🧠 **Groq LLM**: Uses blazing-fast LLaMA-3 (via OpenAI-compatible API)
+- 📊 **10-question format**: Includes intro, skills, deep-dive, and project queries
+- 🧾 **AI evaluation**: Get feedback, score, strengths & areas of improvement
+- 🔊 **Speech output**: AI speaks each question out loud
+- 🔐 **Bring Your Own API Key**: Supports user-supplied Groq keys for free use
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+---
+
+## 🧪 Tech Stack
+
+| Frontend        | Backend/API         | AI/LLM                     | Voice |
+|----------------|---------------------|----------------------------|-------|
+| React + Vite   | No backend required | Groq LLaMA-3 (`llama3-70b`) | Web Speech API (TTS + STT) |
+
+---
+
+## 🚀 Getting Started
+
+### 1. Clone the repo
+```bash
+git clone https://github.com/ExplorerSoul/aqia-mate.git
+cd aqia-mate
