@@ -14,8 +14,20 @@ const ResumeParser = ({ onParse }) => {
 
   const handleFileUpload = async (e) => {
     const file = e.target.files[0];
-    if (!file || file.type !== 'application/pdf') {
+
+    if (!file) {
+      setFileName('');
+      onParse(null);
+      return;
+    }
+
+    if (file.type !== 'application/pdf') {
       alert('❌ Please upload a valid PDF file.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('❌ File too large. Please upload under 5MB.');
       return;
     }
 
@@ -27,16 +39,22 @@ const ResumeParser = ({ onParse }) => {
 
     reader.onload = async () => {
       try {
-        const pdf = await pdfjsLib.getDocument(reader.result).promise;
+        const pdf = await pdfjsLib.getDocument({ data: reader.result }).promise;
         let text = '';
         for (let i = 1; i <= pdf.numPages; i++) {
           const page = await pdf.getPage(i);
           const content = await page.getTextContent();
-          const pageText = content.items.map(item => item.str).join(' ');
-          text += pageText + '\n';
+          text += content.items.map(item => item.str).join(' ') + '\n';
         }
 
-        onParse(text.trim());
+        const parsed = text.trim();
+        if (!parsed) {
+          alert('❌ Could not extract text. Please upload a text-based PDF.');
+          onParse(null);
+          setFileName('');
+        } else {
+          onParse(parsed);
+        }
       } catch (error) {
         console.error('❌ PDF parsing error:', error);
         alert('Error parsing resume.');

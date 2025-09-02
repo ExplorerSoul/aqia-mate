@@ -23,6 +23,17 @@ const InterviewFlow = ({ appData }) => {
   const [micError, setMicError] = useState('');
   const [initialized, setInitialized] = useState(false);
 
+  // Initialize detailedReview storage
+  useEffect(() => {
+    const existing = sessionStorage.getItem('final_review_detailed');
+    if (!existing) {
+      sessionStorage.setItem(
+        'final_review_detailed',
+        JSON.stringify({ questions: [], strengths: [], weaknesses: [] })
+      );
+    }
+  }, []);
+
   const speakThenListen = async (text) => {
     setSpeaking(true);
     setMicError('');
@@ -45,27 +56,48 @@ const InterviewFlow = ({ appData }) => {
     }
   };
 
-  const handleProceed = async () => {
-    if (!transcript?.trim()) {
-      setMicError('⚠️ No speech detected. Try again or click Proceed.');
-      return;
-    }
+  const saveAnswerToSession = async (userAnswer, correctedAnswer) => {
+    const raw = sessionStorage.getItem('final_review_detailed');
+    const reviewData = raw ? JSON.parse(raw) : { questions: [], strengths: [], weaknesses: [] };
 
+    reviewData.questions.push({
+      question: currentQuestion,
+      yourAnswer: userAnswer,
+      correctedAnswer: correctedAnswer || ''
+    });
+
+    sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
+  };
+
+  const handleProceed = async () => {
     setListening(false);
 
-    try {
-      const response = await ai.sendMessage(transcript);
+    if (!transcript?.trim() || transcript === '(No response)') {
+      setMicError('⚠️ No clear response. Proceeding anyway...');
+    }
 
-      if (ai.isInterviewComplete(response)) {
-        await SpeechService.speak(response);
-        sessionStorage.setItem('final_review', response);
+    try {
+      const aiResponse = await ai.sendMessage(transcript || '(No response)');
+
+      // Save the answer for this question
+      await saveAnswerToSession(transcript, aiResponse.correctedAnswer || aiResponse);
+
+      if (ai.isInterviewComplete(aiResponse)) {
+        // Optionally, AI can also give strengths & weaknesses here
+        const finalEvaluation = await ai.getFinalEvaluation();
+        const reviewRaw = sessionStorage.getItem('final_review_detailed');
+        const reviewData = reviewRaw ? JSON.parse(reviewRaw) : { questions: [], strengths: [], weaknesses: [] };
+        reviewData.strengths = finalEvaluation.strengths || [];
+        reviewData.weaknesses = finalEvaluation.weaknesses || [];
+        sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
+
         navigate('/review');
         return;
       }
 
       setTranscript('');
-      setQuestionNumber(prev => prev + 1);
-      setCurrentQuestion(response);
+      setQuestionNumber((prev) => prev + 1);
+      setCurrentQuestion(aiResponse.nextQuestion || aiResponse);
     } catch (err) {
       alert('❌ AI Error: ' + err.message);
     }
@@ -77,21 +109,19 @@ const InterviewFlow = ({ appData }) => {
     SpeechService.stopSpeaking();
 
     try {
-      const finalReviewPrompt = {
-        role: 'user',
-        content: 'Please provide the final evaluation based on the conversation so far.'
-      };
+      const finalEvaluation = await ai.getFinalEvaluation();
+      const reviewRaw = sessionStorage.getItem('final_review_detailed');
+      const reviewData = reviewRaw ? JSON.parse(reviewRaw) : { questions: [], strengths: [], weaknesses: [] };
+      reviewData.strengths = finalEvaluation.strengths || [];
+      reviewData.weaknesses = finalEvaluation.weaknesses || [];
+      sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
 
-      ai.conversationHistory.push(finalReviewPrompt);
-      const review = await ai.sendMessage();
-
-      sessionStorage.setItem('final_review', review);
       navigate('/review');
     } catch (err) {
-      alert('❌ Failed to generate review: ' + err.message);
+      console.error('❌ Failed to generate review:', err);
+      navigate('/review');
     }
   };
-
 
   const handleManualStop = () => {
     SpeechService.stopListening();
@@ -144,7 +174,7 @@ const InterviewFlow = ({ appData }) => {
 
   return (
     <div className="interview-container">
-      <h2>🧠 Interview Question {questionNumber} of 10</h2>
+      <h2>🧠 Interview Question {questionNumber}</h2>
 
       <VoiceOutput text={currentQuestion} />
 
@@ -156,16 +186,22 @@ const InterviewFlow = ({ appData }) => {
         onResumeListening={handleResume}
       />
 
-      <button onClick={handleProceed} disabled={!transcript?.trim()}>
-        ✅ Proceed to Next
-      </button>
-      <button onClick={handleEarlyExit} style={{ backgroundColor: '#dc3545', marginLeft: '1rem', color: 'white' }}>
+      <button onClick={handleProceed}>✅ Proceed to Next</button>
+      <button
+        onClick={handleEarlyExit}
+        style={{ backgroundColor: '#dc3545', marginLeft: '1rem', color: 'white' }}
+      >
         ❌ End Interview Now
       </button>
 
-
-      <p><strong>🔊 Speaking:</strong> {speaking ? 'Yes' : 'No'} | 🎤 Listening: {listening ? 'Yes' : 'No'}</p>
-      {transcript && <p><strong>You said:</strong> {transcript}</p>}
+      <p>
+        <strong>🔊 Speaking:</strong> {speaking ? 'Yes' : 'No'} | 🎤 Listening: {listening ? 'Yes' : 'No'}
+      </p>
+      {transcript && (
+        <p>
+          <strong>You said:</strong> {transcript}
+        </p>
+      )}
     </div>
   );
 };

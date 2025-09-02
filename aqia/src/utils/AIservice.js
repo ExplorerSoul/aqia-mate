@@ -3,113 +3,138 @@ import PromptBuilder from './promptBuilder';
 class AIservice {
   constructor(apiKey) {
     this.apiKey = apiKey;
-    this.baseURL = 'https://api.groq.com/openai/v1/chat/completions';
+    this.baseURL =
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
     this.conversationHistory = [];
-    this.model = 'llama3-70b-8192';
+    this.model = 'gemini-1.5-flash';
 
     this.questionCount = 0;
-    this.maxQuestions = 10;
+    this.maxQuestions = 5;
     this.awaitingRetry = false;
-    this.systemPrompt = ''; // ✅ store for later
+    this.systemPrompt = '';
+    this.promptBuilder = new PromptBuilder();
+    this.domain = '';
+    this.resumeText = '';
+
+    this.currentPhase = 'opening';
+    this.askedQuestions = new Set();
+    this.resumeInsights = null;
   }
 
   generateSystemPrompt(domain, resumeText = '') {
     const builder = new PromptBuilder();
-    const resumeAnalysis = builder.analyzeResume(resumeText);
-    const domainPrompts = {
-      'Software Engineer': 'You are a senior technical interviewer for a Software Engineering position. Focus on coding, system design, data structures, and technical problem-solving.',
-      'Data Analyst': 'You are an experienced interviewer for a Data Analyst role. Focus on SQL, visualization, statistics, and business intelligence.',
-      'Product Manager': 'You are a seasoned interviewer for a Product Manager role. Focus on product strategy, user research, planning, and stakeholder communication.',
-      'Consultant': 'You are a senior partner interviewing for a Management Consultant role. Focus on case studies, frameworks, communication, and analytics.',
-      'Marketing': 'You are a marketing director interviewing for a Marketing role. Focus on campaign strategy, digital analytics, and brand building.',
-      'Sales': 'You are a sales director interviewing for a Sales role. Focus on pipeline, negotiation, targets, and client relationship building.'
-    };
+    this.resumeInsights = builder.analyzeResume(resumeText);
+    const interviewPrompt = builder.getInterviewPrompt(domain, resumeText, this.resumeInsights);
 
-    const basePrompt = domainPrompts[domain] || 'You are a professional interviewer.';
+    return `${interviewPrompt}
 
-    return `${basePrompt}
+CRITICAL INSTRUCTIONS:
+- Only ONE question per response
+- Never generic, always resume-specific
+- Reference actual projects, companies, or skills
+- Phases: opening → resume_deep_dive → domain_specific → behavioral → closing
+- Max ${this.maxQuestions} questions, then STOP and wait for evaluation
 
-CANDIDATE'S RESUME:
-${resumeText.trim()}
-
-Experience level: ${resumeAnalysis.experience}
-Top skills: ${resumeAnalysis.keySkills.join(', ') || 'N/A'}
-Projects mentioned: ${resumeAnalysis.projects.join(', ') || 'N/A'}
-
-You must conduct a 10-question structured interview in this order:
-- 1 introduction-style question (e.g., "Tell me about yourself")
-- 3 skill-based questions
-- 4 deep-dive domain questions
-- 2 project-based questions
-
-IMPORTANT: Respond with ONLY the question text. Do not include:
-- Question numbers (like "Question 1:", "1.", etc.)
-- Greetings or introductions
-- Question types or categories
-- Any explanatory text before or after the question
-- Multiple questions at once
-
-Just ask the direct question as a human interviewer would naturally ask it.`;
+Start with a warm opener.`;
   }
 
   async initializeInterview(domain, resumeText = '') {
+    this.domain = domain;
+    this.resumeText = resumeText;
+    this.currentPhase = 'opening';
+    this.askedQuestions.clear();
     this.systemPrompt = this.generateSystemPrompt(domain, resumeText);
-    this.conversationHistory = [
-      { role: 'system', content: this.systemPrompt }
-    ];
+    this.conversationHistory = [];
     this.questionCount = 0;
     this.awaitingRetry = false;
+
     return await this.getNextQuestion();
   }
 
   async sendMessage(userResponse = '') {
-    if (userResponse) {
-      this.conversationHistory.push({ role: 'user', content: userResponse });
+    // ✅ Hard stop if we hit max questions
+    if (this.questionCount >= this.maxQuestions && !this.awaitingRetry) {
+      return await this.endInterview();
+    }
+
+    this._updateInterviewPhase();
+
+    let contents = [];
+
+    if (this.conversationHistory.length === 0) {
+      contents.push({
+        role: 'user',
+        parts: [{ text: this.systemPrompt }],
+      });
+    } else {
+      contents = this.conversationHistory
+        .filter((msg) => msg.role === 'user')
+        .map((msg) => ({ role: 'user', parts: msg.parts }));
+    }
+
+    if (userResponse && userResponse.trim()) {
+      const contextualPrompt = this._buildContextualPrompt(userResponse);
+      contents.push({
+        role: 'user',
+        parts: [{ text: `${userResponse}\n\n${contextualPrompt}` }],
+      });
 
       if (!this._isWeakAnswer(userResponse)) {
         this.questionCount++;
+        this.awaitingRetry = false;
       } else {
         this.awaitingRetry = true;
       }
-    }
-
-    if (this.questionCount >= this.maxQuestions && !this.awaitingRetry) {
-      this.conversationHistory.push({
-        role: 'user',
-        content: 'Please give the final evaluation now.'
-      });
     }
 
     try {
       const response = await fetch(this.baseURL, {
         method: 'POST',
         headers: {
-          'Authorization': `Bearer ${this.apiKey}`,
-          'Content-Type': 'application/json'
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
         },
         body: JSON.stringify({
-          model: this.model,
-          messages: this.conversationHistory,
-          temperature: 0.7
-        })
+          contents,
+          generationConfig: {
+            temperature: 0.8,
+            maxOutputTokens: 150,
+          },
+        }),
       });
 
       if (!response.ok) {
-        throw new Error(`API Error: ${response.status} ${response.statusText}`);
+        const errorText = await response.text();
+        throw new Error(
+          `API Error: ${response.status} ${response.statusText} - ${errorText}`
+        );
       }
 
       const data = await response.json();
-      const aiResponse = data.choices[0].message.content.trim();
-      
-      // Clean the response to extract only the core question
-      const cleanedResponse = this._extractCoreQuestion(aiResponse);
-      
-      this.conversationHistory.push({ role: 'assistant', content: aiResponse });
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
-      return cleanedResponse;
+      if (!aiResponse) {
+        throw new Error('Invalid response format from API');
+      }
+
+      if (userResponse) {
+        this.conversationHistory.push({
+          role: 'user',
+          parts: [{ text: userResponse }],
+        });
+      }
+      this.conversationHistory.push({
+        role: 'model',
+        parts: [{ text: aiResponse }],
+      });
+
+      const cleanQuestion = this._extractCoreQuestion(aiResponse);
+      this.askedQuestions.add(cleanQuestion.toLowerCase());
+
+      return cleanQuestion;
     } catch (error) {
       console.error('AI API Error:', error);
-      throw new Error('Failed to get response from AI. Please check your API key and try again.');
+      throw new Error(`Failed to get response from AI: ${error.message}`);
     }
   }
 
@@ -117,26 +142,82 @@ Just ask the direct question as a human interviewer would naturally ask it.`;
     return await this.sendMessage();
   }
 
-  isInterviewComplete(response) {
-    const lower = response.toLowerCase();
-    const evaluationKeywords = [
-      'your score',
-      'you scored',
-      'strengths',
-      'areas for improvement',
-      'final evaluation',
-      'closing remarks',
-      'overall performance'
-    ];
-    return this.questionCount >= this.maxQuestions || evaluationKeywords.some(k => lower.includes(k));
+  async endInterview() {
+    const evalPrompt = this.promptBuilder.buildEvaluationPrompt(
+      this.getTranscript(),
+      this.domain
+    );
+
+    try {
+      const response = await fetch(this.baseURL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': this.apiKey,
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              role: 'user',
+              parts: [{ text: evalPrompt }],
+            },
+          ],
+          generationConfig: {
+            temperature: 0.7,
+            maxOutputTokens: 300,
+          },
+        }),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(
+          `API Error: ${response.status} ${response.statusText} - ${errorText}`
+        );
+      }
+
+      const data = await response.json();
+      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+      if (!aiResponse) {
+        throw new Error('Invalid response format from API');
+      }
+
+      this.conversationHistory.push({
+        role: 'model',
+        parts: [{ text: aiResponse }],
+      });
+
+      // ✅ Persist review so FinalReview can show it
+      sessionStorage.setItem('final_review', aiResponse);
+
+      return aiResponse;
+    } catch (error) {
+      console.error('End Interview Error:', error);
+      throw new Error(`Failed to end interview: ${error.message}`);
+    }
+  }
+
+  _updateInterviewPhase() {
+    if (this.questionCount <= 1) {
+      this.currentPhase = 'opening';
+    } else if (this.questionCount <= 2) {
+      this.currentPhase = 'resume_deep_dive';
+    } else if (this.questionCount <= 3) {
+      this.currentPhase = 'domain_specific';
+    } else if (this.questionCount <= 4) {
+      this.currentPhase = 'behavioral';
+    } else {
+      this.currentPhase = 'closing';
+    }
   }
 
   getTranscript() {
     return this.conversationHistory
-      .filter(msg => msg.role !== 'system')
-      .map(msg => ({
+      .filter((msg) => msg.role !== 'system')
+      .map((msg) => ({
         speaker: msg.role === 'user' ? 'Candidate' : 'Interviewer',
-        content: msg.content
+        content: msg.parts[0].text,
       }));
   }
 
@@ -145,33 +226,49 @@ Just ask the direct question as a human interviewer would naturally ask it.`;
   }
 
   _isWeakAnswer(answer) {
-    const weakPhrases = ['sorry', 'i don\'t know', 'not sure', 'no idea', 'skip'];
-    return weakPhrases.some(p => answer.toLowerCase().includes(p));
+    const weakPhrases = [
+      'sorry',
+      "i don't know",
+      'not sure',
+      'no idea',
+      'skip',
+      "i don't have",
+      'never done',
+      "can't say",
+      'not familiar',
+    ];
+    return (
+      weakPhrases.some((p) => answer.toLowerCase().includes(p)) ||
+      answer.trim().length < 20
+    );
   }
 
   _extractCoreQuestion(response) {
-    // Remove question numbers and prefixes
     let cleaned = response
       .replace(/^(Question\s*\d+[\s\.\:\-]*)/i, '')
       .replace(/^\d+[\s\.\:\-]+/, '')
-      .replace(/^(Here's|Now|Let's|Next)\s+(question|is)\s*\d*[\s\.\:\-]*/i, '')
-      .replace(/^(Introduction|Skill|Domain|Project).*?question[\s\.\:\-]*/i, '');
+      .replace(/^(Here('|)s|Now|Let('|)s|Next)\s+(question|is)?\s*\d*[\s\.\:\-]*/i, '')
+      .replace(/^(Great|Good|Thanks|Alright|Okay|So|Well)[\s,.\-]*/i, '')
+      .replace(/--- INTERVIEWER CONTEXT ---[\s\S]*$/i, '')
+      .trim();
 
-    // Remove common interviewer intro phrases
-    cleaned = cleaned
-      .replace(/^(Great|Good|Thank you|Thanks|Alright|Okay|Now|So|Let me ask you|I'd like to ask|Let's talk about|Tell me about)[\s\,\.\-]*/i, '')
-      .replace(/^(Moving on|Next up|For this question|Here's what I want to know)[\s\,\.\-]*/i, '');
+    const sentences = cleaned
+      .split(/(?<=[?.!])\s+/)
+      .map((s) => s.trim())
+      .filter((s) => s.length > 0);
 
-    // Extract the actual question (usually the last sentence ending with ?)
-    const sentences = cleaned.split(/[.!]+/).filter(s => s.trim());
-    const questionSentence = sentences.find(s => s.includes('?'));
-    
-    if (questionSentence) {
-      return questionSentence.trim();
+    const questionSentence = sentences.find((s) => s.endsWith('?'));
+
+    if (!questionSentence) {
+      const questionLike = sentences.find((s) =>
+        /\b(how|what|why|when|can|would|could|tell|explain|walk|describe|share)\b/i.test(
+          s
+        )
+      );
+      return questionLike || cleaned.trim();
     }
 
-    // If no question mark found, return the cleaned response
-    return cleaned.trim();
+    return questionSentence;
   }
 }
 

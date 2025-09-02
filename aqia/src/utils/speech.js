@@ -1,3 +1,4 @@
+// SpeechService.js
 class SpeechService {
   constructor() {
     this.recognition = null;
@@ -5,182 +6,216 @@ class SpeechService {
     this.isListening = false;
     this.isSpeaking = false;
     this.voices = [];
+    this.speakQueue = [];
+    this.finalTranscript = "";
 
     this.initializeSpeechRecognition();
     this.loadVoices();
   }
 
   initializeSpeechRecognition() {
-    if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
-      throw new Error('Speech recognition not supported in this browser');
+    if (!("webkitSpeechRecognition" in window) && !("SpeechRecognition" in window)) {
+      console.warn("⚠️ Speech recognition not supported in this browser.");
+      return;
     }
 
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
     this.recognition = new SpeechRecognition();
 
-    this.recognition.continuous = false;
-    this.recognition.interimResults = false;
-    this.recognition.lang = 'en-US';
+    this.recognition.continuous = true;       // Keep listening
+    this.recognition.interimResults = true;   // Get live partial results
+    this.recognition.lang = "en-US";
     this.recognition.maxAlternatives = 1;
   }
 
   loadVoices() {
     const load = () => {
       const voices = this.synthesis.getVoices();
-      if (voices.length > 0) this.voices = voices;
+      if (voices.length > 0) {
+        this.voices = voices;
+        this.synthesis.removeEventListener("voiceschanged", load);
+      }
     };
 
-    load(); // Try immediately
-
+    load();
     if (this.voices.length === 0) {
-      this.synthesis.addEventListener('voiceschanged', load);
+      this.synthesis.addEventListener("voiceschanged", load);
     }
   }
 
-  getPreferredVoice() {
-    const englishVoices = this.voices.filter(
-      voice => voice.lang.startsWith('en') && voice.name.toLowerCase().includes('female')
+  getPreferredVoice(genderPreference = "female") {
+    const englishVoices = this.voices.filter((v) => v.lang.startsWith("en"));
+    if (genderPreference === "female") {
+      const female = englishVoices.find((v) =>
+        v.name.toLowerCase().includes("female")
+      );
+      if (female) return female;
+    }
+    return (
+      englishVoices.find((v) => v.default) ||
+      englishVoices[0] ||
+      this.voices[0] ||
+      null
     );
-    return englishVoices[0] || this.voices.find(v => v.lang.startsWith('en')) || this.voices[0];
   }
 
-  async speak(text) {
+  // ✅ Text-to-Speech
+  async speak(text, { interrupt = true } = {}) {
     return new Promise((resolve, reject) => {
-      if (!text || typeof text !== 'string') return resolve();
+      if (!text || typeof text !== "string") return resolve();
 
-      if (this.isSpeaking) {
-        this.synthesis.cancel();
-        this.isSpeaking = false;
-      }
+      const cleanText = text.replace(/[*_`~]/g, "").replace(/\s{2,}/g, " ").trim();
+      const utterance = new SpeechSynthesisUtterance(cleanText);
 
-      const utterance = new SpeechSynthesisUtterance(text);
       const voice = this.getPreferredVoice();
       if (voice) utterance.voice = voice;
 
-      utterance.rate = 0.9;
+      utterance.rate = 0.95;
       utterance.pitch = 1.0;
-      utterance.volume = 0.8;
+      utterance.volume = 0.9;
 
       utterance.onstart = () => {
         this.isSpeaking = true;
       };
-
       utterance.onend = () => {
         this.isSpeaking = false;
+        this._dequeueNext();
         resolve();
       };
-
       utterance.onerror = (err) => {
         this.isSpeaking = false;
+        this._dequeueNext();
         reject(err);
       };
 
-      this.synthesis.speak(utterance);
+      if (interrupt) {
+        this.synthesis.cancel();
+        this.speakQueue = [];
+      }
+
+      this.speakQueue.push(utterance);
+      if (!this.isSpeaking) {
+        this._dequeueNext();
+      }
     });
   }
 
-  stopSpeaking() {
-    if (this.isSpeaking) {
-      this.synthesis.cancel();
+  _dequeueNext() {
+    if (this.speakQueue.length > 0) {
+      const next = this.speakQueue.shift();
+      this.synthesis.speak(next);
+    } else {
       this.isSpeaking = false;
     }
   }
 
-  async startListening(idleTimeout = null, maxTotalTime = null) {
-    return new Promise((resolve, reject) => {
-      if (this.isListening) return;
+  stopSpeaking(force = false) {
+    if (force) {
+      this.synthesis.cancel();
+      this.speakQueue = [];
+      this.isSpeaking = false;
+    } else {
+      this.speakQueue = [];
+    }
+  }
 
-      let idleTimer = null;
-      let totalTimer = null;
+  // ✅ Start Listening
+  async startListening(onPartial = null) {
+    return new Promise((resolve, reject) => {
+      if (!this.recognition) return reject(new Error("Speech recognition not supported."));
+      if (this.isListening) return reject(new Error("Already listening."));
+
+      this.finalTranscript = "";
 
       this.recognition.onstart = () => {
         this.isListening = true;
-
-        // Optional: Idle timeout (e.g., no voice for 20s)
-        if (idleTimeout) {
-          idleTimer = setTimeout(() => {
-            this.stopListening();
-            reject(new Error('Idle timeout: No speech detected.'));
-          }, idleTimeout);
-        }
-
-        // Optional: Max total listening time
-        if (maxTotalTime) {
-          totalTimer = setTimeout(() => {
-            this.stopListening();
-            reject(new Error('Max listen time exceeded.'));
-          }, maxTotalTime);
-        }
+        console.log("🎙️ Listening started...");
       };
 
       this.recognition.onresult = (event) => {
-        clearTimeout(idleTimer);
-        clearTimeout(totalTimer);
-
-        const transcript = event.results?.[0]?.[0]?.transcript;
-        this.isListening = false;
-
-        if (!transcript || transcript.trim() === '') {
-          reject(new Error('No speech detected.'));
-        } else {
-          resolve(transcript.trim());
+        let interimTranscript = "";
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const transcript = event.results[i][0].transcript;
+          if (event.results[i].isFinal) {
+            this.finalTranscript += transcript + " ";
+          } else {
+            interimTranscript += transcript;
+          }
         }
+
+        const combined = (this.finalTranscript + " " + interimTranscript).trim();
+        if (onPartial) onPartial(combined); // ✅ live update in UI
       };
 
       this.recognition.onend = () => {
+        console.log("🛑 Listening stopped.");
         this.isListening = false;
-        clearTimeout(idleTimer);
-        clearTimeout(totalTimer);
+        this.finalTranscript = this._normalizeTranscript(this.finalTranscript);
+
+        if (!this.finalTranscript) {
+          reject(new Error("No clear speech detected."));
+        } else {
+          resolve(this.finalTranscript);
+        }
       };
 
       this.recognition.onerror = (err) => {
+        console.error("Speech recognition error:", err);
         this.isListening = false;
-        clearTimeout(idleTimer);
-        clearTimeout(totalTimer);
         reject(err);
       };
 
       try {
         this.recognition.start();
       } catch (err) {
-        reject(new Error('Failed to start speech recognition.'));
+        reject(new Error("Failed to start speech recognition."));
       }
     });
   }
 
   stopListening() {
-    if (this.isListening) {
+    if (this.recognition) {
       try {
+        this.isListening = false;
         this.recognition.stop();
       } catch (err) {
-        console.warn('Speech recognition stop error:', err);
+        console.warn("Speech recognition stop error:", err);
       }
-      this.isListening = false;
     }
   }
 
+  _normalizeTranscript(text) {
+    if (!text) return "";
+    return text
+      .replace(/\b(um+|uh+|like)\b/gi, "")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
   static isSupported() {
-    const speechRecognitionSupported = 'webkitSpeechRecognition' in window || 'SpeechRecognition' in window;
-    const speechSynthesisSupported = 'speechSynthesis' in window;
+    const speechRecognitionSupported =
+      "webkitSpeechRecognition" in window || "SpeechRecognition" in window;
+    const speechSynthesisSupported = "speechSynthesis" in window;
     return {
       recognition: speechRecognitionSupported,
       synthesis: speechSynthesisSupported,
-      both: speechRecognitionSupported && speechSynthesisSupported
+      both: speechRecognitionSupported && speechSynthesisSupported,
     };
   }
 
   static async requestMicrophonePermission() {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
+      stream.getTracks().forEach((track) => track.stop());
       return true;
     } catch (error) {
-      console.error('Microphone permission denied:', error);
+      console.error("Microphone permission denied:", error);
       return false;
     }
   }
 }
 
-// ✅ Export singleton instance
+// ✅ Export singleton
 const speechService = new SpeechService();
 export default speechService;

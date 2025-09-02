@@ -3,31 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
 import 'pdfjs-dist/build/pdf.worker.min.mjs';
 
-// Set global PDF worker
+import PromptBuilder from '../utils/promptBuilder';
+
+// ✅ Set global PDF worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
 ).toString();
 
 const Onboarding = ({ setAppData }) => {
-  const [apiKey, setApiKey] = useState('');
+  // 🔑 Load API key from env (make sure .env has VITE_GEMINI_API_KEY=your_key_here)
+  const defaultApiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
+
+  const [apiKey, setApiKey] = useState(defaultApiKey);
   const [domain, setDomain] = useState('');
   const [resumeText, setResumeText] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Load saved values from sessionStorage
+  // ✅ Load saved values (except apiKey)
   useEffect(() => {
-    const storedApiKey = sessionStorage.getItem('user_api_key');
     const storedDomain = sessionStorage.getItem('user_domain');
     const storedResume = sessionStorage.getItem('user_resume');
 
-    if (storedApiKey) setApiKey(storedApiKey);
     if (storedDomain) setDomain(storedDomain);
     if (storedResume) setResumeText(storedResume);
   }, []);
 
-  // ✅ Parse uploaded resume
+  // ✅ Resume upload
   const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
 
@@ -41,7 +44,7 @@ const Onboarding = ({ setAppData }) => {
 
     reader.onload = async () => {
       try {
-        const pdf = await pdfjsLib.getDocument(reader.result).promise;
+        const pdf = await pdfjsLib.getDocument({ data: reader.result }).promise;
         let text = '';
 
         for (let i = 1; i <= pdf.numPages; i++) {
@@ -51,6 +54,11 @@ const Onboarding = ({ setAppData }) => {
         }
 
         const cleaned = text.trim();
+        if (!cleaned) {
+          alert('❌ Could not extract text. Upload a text-based PDF.');
+          return;
+        }
+
         setResumeText(cleaned);
         sessionStorage.setItem('user_resume', cleaned);
       } catch (err) {
@@ -64,14 +72,22 @@ const Onboarding = ({ setAppData }) => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ Handle form submit
+  // ✅ Handle Start
   const handleStart = () => {
-    if (!apiKey || !domain || !resumeText) {
-      alert('❗ Please fill all fields and upload a resume.');
+    if (!apiKey) {
+      alert('❌ API key missing. Check your .env file (VITE_GEMINI_API_KEY).');
+      return;
+    }
+    if (!domain || !resumeText) {
+      alert('❗ Please select a domain and upload a resume.');
+      return;
+    }
+    if (!new PromptBuilder().isValidDomain(domain)) {
+      alert('❌ Invalid domain selected.');
       return;
     }
 
-    sessionStorage.setItem('user_api_key', apiKey);
+    // Save session values
     sessionStorage.setItem('user_domain', domain);
     sessionStorage.setItem('user_resume', resumeText);
 
@@ -83,30 +99,32 @@ const Onboarding = ({ setAppData }) => {
     <div className="onboarding-container">
       <h1>AQIA - AI Interview Assistant</h1>
 
-      <label>🔑 Groq API Key:</label>
-      <input
-        type="password"
-        placeholder="gsk_..."
-        value={apiKey}
-        onChange={(e) => setApiKey(e.target.value)}
-      />
+      {/* 🔑 API key info */}
+      {apiKey ? (
+        <p style={{ fontSize: '0.9rem', color: 'gray' }}>
+          🔑 Using system API key from .env
+        </p>
+      ) : (
+        <p style={{ fontSize: '0.9rem', color: 'red' }}>
+          ⚠️ No API key found. Add VITE_GEMINI_API_KEY to your .env file.
+        </p>
+      )}
 
       <label>🎯 Select Interview Domain:</label>
       <select value={domain} onChange={(e) => setDomain(e.target.value)}>
         <option value="">-- Choose Domain --</option>
-        <option value="Software Engineer">Software Engineer</option>
-        <option value="Consultant">Consultant</option>
-        <option value="Data Analyst">Data Analyst</option>
-        <option value="Product Manager">Product Manager</option>
-        <option value="Marketing">Marketing</option>
-        <option value="Sales">Sales</option>
+        {new PromptBuilder().getAvailableDomains().map(d => (
+          <option key={d} value={d}>{d}</option>
+        ))}
       </select>
 
       <label>📄 Upload Resume (PDF only):</label>
       <input type="file" accept="application/pdf" onChange={handleResumeUpload} />
 
       {loading && <p>⏳ Parsing resume...</p>}
-      {!loading && resumeText && <p>✅ Resume loaded ({resumeText.length} characters)</p>}
+      {!loading && resumeText && (
+        <p>✅ Resume loaded ({resumeText.length} characters)</p>
+      )}
 
       <button onClick={handleStart}>🚀 Start Interview</button>
     </div>
