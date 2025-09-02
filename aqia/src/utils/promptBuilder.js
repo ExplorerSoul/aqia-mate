@@ -1,444 +1,415 @@
 class PromptBuilder {
   constructor() {
+    this.askedQuestions = new Set();
+
     this.domainTemplates = {
       'Software Engineer': {
-        focus: 'coding decisions, system architecture, debugging approach, and technical trade-offs',
-        style: 'act like a senior engineer who cares about clean code and scalable solutions',
+        focus: 'system design, code quality, debugging, technical decisions, scalability, and architecture',
+        style: 'act like a senior tech lead who values clean code, smart solutions, and practical engineering',
         resumeQuestions: [
-          'I see you used {technology} in {project}. What made you choose that over alternatives?',
-          'Looking at your {project} - how did you handle {technical_aspect}?',
-          'You mentioned {achievement} - walk me through your technical approach.',
-          'In your experience with {technology}, what\'s the biggest lesson you learned?'
+          'I see you built {project} using {technology}. What technical challenges did you face and how did you solve them?',
+          'Looking at your {technology} experience - can you walk me through a complex bug you debugged?',
+          'You worked at {company} - what was the most interesting system you designed or contributed to?',
+          'Tell me about a time you had to make a difficult technical trade-off. What factors did you consider?'
         ],
         scenarioQuestions: [
-          'If you had to design a system for {specific_scale}, how would you approach it?',
-          'How would you debug a performance issue in {relevant_technology}?',
-          'What\'s your process for code reviews when working with junior developers?',
-          'If a critical production bug happened at 3 AM, walk me through your response.'
+          'How would you design a system to handle 1 million concurrent users?',
+          'A service is responding slowly in production. Walk me through your debugging process.',
+          'You need to migrate a legacy monolith to microservices. What\'s your approach?',
+          'How do you ensure code quality when working with a team of developers at different skill levels?'
         ],
-        followUps: [
-          'What were the trade-offs you considered?',
-          'How did you measure the impact of that decision?',
-          'What would you do differently now?',
-          'How did you handle edge cases?'
+        technicalDeepDive: [
+          'Explain how you would optimize database queries in a high-traffic application',
+          'What\'s your approach to handling race conditions in concurrent systems?',
+          'How do you balance technical debt with new feature development?',
+          'Describe your process for choosing between different architectural patterns'
         ]
       },
       'Data Analyst': {
-        focus: 'data interpretation, business insights, statistical reasoning, and visualization choices',
-        style: 'be curious like a data detective who loves turning numbers into stories',
-        resumeQuestions: [
-          'I noticed you worked on {specific_analysis} - what story did the data tell?',
-          'You used {tool} for {project} - why was that the right choice?',
-          'Looking at your {dashboard/report} work - how did you ensure accuracy?',
-          'Tell me about a time your analysis changed a business decision.'
-        ],
+        focus: 'data interpretation, statistical thinking, business insights, visualization, and analytical frameworks',
+        style: 'be like a curious data detective who loves uncovering stories in numbers and driving business impact',
         scenarioQuestions: [
-          'If conversion rates suddenly dropped 15%, how would you investigate?',
-          'How would you design an A/B test for {relevant_business_scenario}?',
-          'A stakeholder questions your methodology - how do you respond?',
-          'What metrics would you track for {business_context}?'
-        ],
-        followUps: [
-          'How did you validate those findings?',
-          'What assumptions did you challenge?',
-          'How did you present this to non-technical stakeholders?',
-          'What biases did you account for?'
+          'Sales dropped 25% last month. How would you investigate the root cause?',
+          'Design an A/B test to improve website conversion rates. What would you measure?',
+          'A stakeholder questions your statistical significance. How do you explain it?',
+          'You find conflicting data from two different sources. How do you resolve this?'
         ]
       },
       'Product Manager': {
-        focus: 'user needs, business impact, prioritization logic, and cross-team collaboration',
-        style: 'think like a strategic partner who balances user value with business goals',
-        resumeQuestions: [
-          'You launched {product/feature} - how did you validate user needs first?',
-          'I see you worked with {team_size} teams - how did you align everyone?',
-          'Looking at your {achievement} - what metrics proved success?',
-          'Tell me about a feature you decided NOT to build and why.'
-        ],
+        focus: 'user empathy, strategic thinking, prioritization, cross-functional leadership, and business impact',
+        style: 'think like a strategic product leader who balances user needs with business goals and technical constraints',
         scenarioQuestions: [
-          'If engineering says a feature will take 6 months but sales wants it in 2, how do you handle it?',
-          'How would you prioritize between fixing technical debt vs new features?',
-          'A key customer threatens to leave without feature X - what\'s your approach?',
-          'How do you decide what to build when you have limited engineering resources?'
-        ],
-        followUps: [
-          'How did you measure user impact?',
-          'What stakeholder pushback did you get?',
-          'How did you communicate trade-offs?',
-          'What did usage data tell you?'
+          'Engineering says a feature will take 6 months, but sales needs it in 2. How do you handle this?',
+          'Your top competitor just launched a feature your users are requesting. What\'s your response?',
+          'User retention dropped 15% after your last release. How do you investigate and respond?',
+          'You have limited engineering resources. How do you prioritize between new features and technical debt?'
         ]
       },
       'Consultant': {
-        focus: 'problem-solving frameworks, client communication, structured thinking, and business impact',
-        style: 'approach like a trusted advisor who breaks complex problems into clear solutions',
-        resumeQuestions: [
-          'You worked on {client_project} - how did you structure the problem?',
-          'Looking at your {industry} experience - what frameworks did you use?',
-          'Tell me about a time you had to change a client\'s mind about something.',
-          'I see you delivered {specific_outcome} - how did you get stakeholder buy-in?'
-        ],
+        focus: 'structured problem-solving, client communication, analytical frameworks, and business impact',
+        style: 'approach like a strategic advisor who breaks complex problems into clear, actionable solutions',
         scenarioQuestions: [
-          'A retail client\'s sales dropped 20% - walk me through your first week.',
-          'How would you help a company decide between building vs buying a solution?',
-          'A client\'s CEO disagrees with your recommendation - how do you proceed?',
-          'You have 3 days to present a market entry strategy - what\'s your approach?'
-        ],
-        followUps: [
-          'How did you validate those assumptions?',
-          'What frameworks guided your thinking?',
-          'How did you handle conflicting data?',
-          'What implementation challenges did you foresee?'
+          'A retail client\'s profits dropped 30% - you have 2 weeks to present initial findings. What\'s your approach?',
+          'The client\'s CEO disagrees with your data-driven recommendation. How do you handle this?',
+          'You need to help a company decide: build in-house vs. buy vs. partner. What\'s your framework?',
+          'A project is behind schedule and the client is getting nervous. How do you manage the situation?'
         ]
       },
       'Marketing': {
-        focus: 'campaign strategy, audience insights, creative execution, and ROI measurement',
-        style: 'think like a growth-focused marketer who loves both creativity and data',
-        resumeQuestions: [
-          'Your {campaign} achieved {result} - what was your targeting strategy?',
-          'I see you used {channel/platform} - why was that the right choice for {goal}?',
-          'Looking at your {brand/growth} work - how did you measure success?',
-          'Tell me about a campaign that didn\'t work and what you learned.'
-        ],
+        focus: 'customer insights, campaign strategy, growth metrics, creative execution, and ROI optimization',
+        style: 'think like a growth-focused marketer who combines creative storytelling with data-driven optimization',
         scenarioQuestions: [
-          'If CAC increased 40% overnight, how would you diagnose and respond?',
-          'How would you launch a product in a saturated market with limited budget?',
-          'A competitor just launched a similar product - what\'s your response strategy?',
-          'How do you balance brand building vs performance marketing?'
-        ],
-        followUps: [
-          'What attribution challenges did you face?',
-          'How did you optimize for different funnel stages?',
-          'What creative insights drove performance?',
-          'How did you segment your audience?'
+          'Customer acquisition costs increased 50% overnight. How do you diagnose and respond?',
+          'Launch a new product in a saturated market with a limited budget. What\'s your strategy?',
+          'A competitor is aggressively targeting your customers. How do you respond?',
+          'How do you balance brand building with performance marketing when budgets are tight?'
         ]
       },
       'Sales': {
-        focus: 'deal strategy, relationship building, objection handling, and revenue impact',
-        style: 'engage like a sales leader who values both relationships and results',
-        resumeQuestions: [
-          'You hit {achievement} - what was your approach to pipeline building?',
-          'Looking at your {industry/segment} experience - what objections did you face most?',
-          'Tell me about your biggest deal and how you closed it.',
-          'I see you managed {territory/accounts} - how did you prioritize your time?'
-        ],
+        focus: 'relationship building, deal strategy, objection handling, pipeline management, and revenue growth',
+        style: 'engage like a consultative sales leader who builds trust through deep customer understanding',
         scenarioQuestions: [
-          'A key prospect goes dark after 3 months of engagement - what\'s your move?',
-          'How would you sell to a buyer who\'s been burned by a competitor?',
-          'You\'re 40% behind quota with 2 months left - what\'s your plan?',
-          'A customer wants to cancel - how do you approach the conversation?'
-        ],
-        followUps: [
-          'How did you build trust with that stakeholder?',
-          'What objections did you anticipate?',
-          'How did you structure the negotiation?',
-          'What was your follow-up strategy?'
+          'A qualified prospect goes silent after 3 months of engagement. What\'s your approach?',
+          'You\'re selling to a buyer who was burned by a competitor. How do you build trust?',
+          'You\'re 40% behind quota with 2 months left in the year. What\'s your plan?',
+          'A long-term customer wants to cancel their contract. How do you handle the conversation?'
         ]
       }
     };
 
-    // Human conversation starters
     this.conversationStarters = [
-      "Tell me about yourself and what drew you to this role.",
-      "I'd love to hear your story - walk me through your background.",
-      "Let's start with you - what's your journey been like so far?",
-      "Before we dive in, help me understand your background.",
-      "I'm excited to learn about you - tell me your story."
+      "I'm excited to learn about your background. Tell me your story and what drew you to this role.",
+      "Let's start with you - I'd love to hear about your journey and what interests you about this opportunity.",
+      "Before we dive into the technical details, help me understand your background and motivation.",
+      "I've reviewed your resume and I'm curious - walk me through your career journey so far.",
+      "Tell me about yourself and what excites you most about the work you do."
     ];
 
-    // Transition phrases for natural flow
-    this.transitions = [
-      "That's interesting - ",
-      "Building on that - ",
-      "I'm curious about something you mentioned - ",
-      "That reminds me - ",
-      "Speaking of {topic} - ",
-      "You brought up {concept}, which makes me wonder - ",
-      "I noticed in your background - "
+    this.naturalTransitions = [
+      "That's interesting - you mentioned {topic}. ",
+      "Building on what you just said about {concept} - ",
+      "I'm curious about something you brought up - ",
+      "You have experience with {skill}, which reminds me - ",
+      "Looking at your background with {company/project} - "
     ];
   }
 
+  /**
+   * Analyze resume → extract insights
+   */
   analyzeResume(resumeText) {
-    if (!resumeText) return { experience: 'entry-level', keySkills: [], projects: [], companies: [], achievements: [] };
-    
+    if (!resumeText || resumeText.trim().length < 50) {
+      return {
+        experience: 'entry-level',
+        keySkills: [],
+        projects: [],
+        companies: [],
+        achievements: [],
+        technologies: [],
+        industries: []
+      };
+    }
+
     const text = resumeText.toLowerCase();
+    const originalText = resumeText;
 
     // Enhanced experience detection
     let experience = 'entry-level';
-    const yearMatches = text.match(/\b(\d+)\+?\s*years?\b/g);
-    const seniorityKeywords = text.match(/\b(senior|lead|principal|architect|director|manager|head of)\b/g);
-    
-    if (seniorityKeywords || (yearMatches && yearMatches.some(y => parseInt(y) >= 7))) {
+    const yearMatches = text.match(/(\d+)[\+\-\s]*years?/g) || [];
+    const experienceYears = yearMatches.map(match => parseInt(match.match(/\d+/)[0]));
+    const maxYears = Math.max(...experienceYears, 0);
+
+    const seniorityIndicators = {
+      'senior': /\b(senior|sr\.?|lead|principal|architect|staff|director|manager|head\s+of|vp|vice\s+president)\b/gi,
+      'mid': /\b(mid|intermediate|associate|specialist|analyst|coordinator)\b/gi,
+      'junior': /\b(junior|jr\.?|entry|intern|trainee|assistant)\b/gi
+    };
+
+    if (seniorityIndicators.senior.test(text) || maxYears >= 7) {
       experience = 'senior-level';
-    } else if (yearMatches && yearMatches.some(y => parseInt(y) >= 3) || /\b(mid|intermediate)\b/.test(text)) {
+    } else if (seniorityIndicators.mid.test(text) || maxYears >= 3) {
       experience = 'mid-level';
-    } else if (/\b(junior|associate|analyst|coordinator)\b/.test(text)) {
-      experience = 'junior/early career';
+    } else if (seniorityIndicators.junior.test(text) || maxYears >= 1) {
+      experience = 'junior-level';
     }
 
-    // Enhanced skill extraction with context
-    const skillPatterns = {
-      'JavaScript': ['javascript', 'js', 'node.js', 'nodejs'],
-      'Python': ['python', 'django', 'flask', 'pandas'],
-      'React': ['react', 'reactjs', 'react.js'],
-      'SQL': ['sql', 'mysql', 'postgresql', 'sqlite'],
-      'AWS': ['aws', 'amazon web services', 'ec2', 's3'],
-      'Machine Learning': ['machine learning', 'ml', 'tensorflow', 'pytorch'],
-      'Data Analysis': ['data analysis', 'analytics', 'tableau', 'power bi'],
-      'Project Management': ['project management', 'agile', 'scrum', 'jira'],
-      'Marketing': ['marketing', 'seo', 'sem', 'google ads', 'facebook ads'],
-      'Sales': ['sales', 'crm', 'salesforce', 'hubspot', 'pipeline']
+    // Enhanced skill extraction
+    const skillCategories = {
+      'Programming': ['javascript', 'python', 'java', 'c++', 'c#', 'go', 'rust', 'typescript', 'php', 'ruby'],
+      'Frontend': ['react', 'vue', 'angular', 'html', 'css', 'sass', 'webpack', 'next.js', 'nuxt'],
+      'Backend': ['node.js', 'express', 'django', 'flask', 'spring', 'asp.net', 'rails', 'laravel'],
+      'Database': ['sql', 'mysql', 'postgresql', 'mongodb', 'redis', 'elasticsearch', 'oracle', 'sqlite'],
+      'Cloud': ['aws', 'azure', 'gcp', 'docker', 'kubernetes', 'terraform', 'serverless'],
+      'Data': ['pandas', 'numpy', 'tensorflow', 'pytorch', 'scikit-learn', 'tableau', 'power bi', 'r'],
+      'Mobile': ['react native', 'flutter', 'ios', 'android', 'swift', 'kotlin'],
+      'Tools': ['git', 'jenkins', 'jira', 'confluence', 'slack', 'figma', 'sketch']
     };
 
     const keySkills = [];
-    for (const [skill, patterns] of Object.entries(skillPatterns)) {
-      if (patterns.some(pattern => text.includes(pattern))) {
-        keySkills.push(skill);
-      }
-    }
-
-    // Extract companies with context
-    const companyIndicators = ['at ', 'worked at', 'joined', 'company', 'inc', 'llc', 'corp'];
-    const companies = [];
-    const sentences = resumeText.split(/[.!?\n]+/);
+    const technologies = [];
     
-    for (let sentence of sentences) {
-      const lower = sentence.toLowerCase();
-      if (companyIndicators.some(indicator => lower.includes(indicator))) {
-        const words = sentence.trim().split(/\s+/);
-        const companyLike = words.find(word => 
-          word.length > 2 && 
-          /^[A-Z][a-zA-Z]+/.test(word) && 
-          !['The', 'And', 'With', 'For', 'In', 'At'].includes(word)
-        );
-        if (companyLike && companies.length < 3) {
-          companies.push(companyLike);
+    for (const [category, skills] of Object.entries(skillCategories)) {
+      for (const skill of skills) {
+        if (text.includes(skill.toLowerCase())) {
+          keySkills.push(skill);
+          technologies.push({ name: skill, category });
         }
       }
     }
 
-    // Enhanced project extraction with impact
-    const projectIndicators = [
-      'built', 'developed', 'created', 'designed', 'implemented', 'engineered',
-      'launched', 'delivered', 'led', 'managed', 'architected', 'optimized'
+    // Extract companies with better context
+    const companyPatterns = [
+      /(?:at|with|for|worked at|joined|company|employed by)\s+([A-Z][a-zA-Z\s&.,]+(?:Inc|LLC|Corp|Ltd|Co|Company|Technologies|Solutions|Systems|Group|Labs)?)/gi,
+      /([A-Z][a-zA-Z\s&.]+(?:Inc|LLC|Corp|Ltd|Co|Company|Technologies|Solutions|Systems|Group|Labs))/gi
     ];
-    
-    const projects = [];
-    for (let sentence of sentences) {
-      const lower = sentence.toLowerCase();
-      if (projectIndicators.some(indicator => lower.includes(indicator))) {
-        const clean = sentence.trim();
-        if (clean.length >= 20 && clean.length <= 200 && projects.length < 5) {
-          projects.push(clean);
+
+    const companies = new Set();
+    for (const pattern of companyPatterns) {
+      const matches = originalText.match(pattern) || [];
+      matches.forEach(match => {
+        const cleaned = match.replace(/^(at|with|for|worked at|joined|company|employed by)\s+/i, '').trim();
+        if (cleaned.length > 2 && cleaned.length < 50 && companies.size < 5) {
+          companies.add(cleaned);
         }
-      }
+      });
+    }
+
+    // Enhanced project extraction
+    const projectIndicators = [
+      /(?:built|developed|created|designed|implemented|engineered|launched|delivered|led|managed|architected|optimized)\s+([^.!?]+)/gi,
+      /(?:project|system|application|platform|tool|website|app|solution|service|feature)\s*:?\s*([^.!?]+)/gi
+    ];
+
+    const projects = new Set();
+    for (const pattern of projectIndicators) {
+      const matches = originalText.match(pattern) || [];
+      matches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length >= 30 && cleaned.length <= 200 && projects.size < 6) {
+          projects.add(cleaned);
+        }
+      });
     }
 
     // Extract achievements with metrics
     const achievementPatterns = [
-      /increased?\s+.*?by\s+(\d+%|\d+x)/gi,
-      /reduced?\s+.*?by\s+(\d+%)/gi,
-      /improved?\s+.*?by\s+(\d+%)/gi,
-      /achieved?\s+.*?(\$\d+|\d+%|\d+x)/gi,
-      /managed?\s+.*?(\$\d+|\d+ people|\d+ team)/gi
+      /(?:increased|improved|boosted|grew|enhanced|optimized|reduced|decreased|minimized|saved|generated|delivered)\s+[^.!?]*?(?:\d+%|\d+x|\$\d+(?:k|m)?|\d+\s*(?:million|thousand|users|customers|leads))/gi,
+      /(?:achieved|reached|exceeded|surpassed|delivered|completed|managed|handled|processed)\s+[^.!?]*?(?:\d+%|\d+x|\$\d+(?:k|m)?|\d+\s*(?:million|thousand|users|customers|projects))/gi
     ];
 
-    const achievements = [];
-    for (let sentence of sentences) {
-      if (achievementPatterns.some(pattern => pattern.test(sentence))) {
-        const clean = sentence.trim();
-        if (clean.length >= 15 && clean.length <= 150 && achievements.length < 3) {
-          achievements.push(clean);
+    const achievements = new Set();
+    for (const pattern of achievementPatterns) {
+      const matches = originalText.match(pattern) || [];
+      matches.forEach(match => {
+        const cleaned = match.trim();
+        if (cleaned.length >= 20 && cleaned.length <= 150 && achievements.size < 4) {
+          achievements.add(cleaned);
         }
+      });
+    }
+
+    // Industry detection
+    const industryKeywords = {
+      'fintech': ['fintech', 'finance', 'banking', 'payments', 'trading', 'investment'],
+      'healthcare': ['healthcare', 'medical', 'hospital', 'pharma', 'biotech', 'health'],
+      'e-commerce': ['e-commerce', 'ecommerce', 'retail', 'shopping', 'marketplace', 'store'],
+      'saas': ['saas', 'software', 'enterprise', 'b2b', 'platform', 'subscription'],
+      'gaming': ['gaming', 'games', 'mobile games', 'console', 'unity', 'unreal'],
+      'education': ['education', 'edtech', 'learning', 'university', 'school', 'training']
+    };
+
+    const industries = [];
+    for (const [industry, keywords] of Object.entries(industryKeywords)) {
+      if (keywords.some(keyword => text.includes(keyword))) {
+        industries.push(industry);
       }
     }
 
     return {
       experience,
-      keySkills: keySkills.slice(0, 8),
-      projects: projects.slice(0, 5),
-      companies: companies.slice(0, 3),
-      achievements: achievements.slice(0, 3)
+      keySkills: Array.from(new Set(keySkills)).slice(0, 8),
+      projects: Array.from(projects).slice(0, 6),
+      companies: Array.from(companies).slice(0, 4),
+      achievements: Array.from(achievements).slice(0, 4),
+      technologies: technologies.slice(0, 10),
+      industries: industries.slice(0, 3),
+      textLength: resumeText.length,
+      analysisQuality: resumeText.length > 200 ? 'detailed' : resumeText.length > 100 ? 'basic' : 'minimal'
     };
   }
 
-  getInterviewPrompt(domain, resumeText, analysis) {
-    const template = this.domainTemplates[domain] || { 
-      focus: 'relevant skills and experience', 
-      style: 'be professional but conversational' 
-    };
-
-    return `You are a skilled ${domain} interviewer conducting a real interview.
-
-🎯 YOUR ROLE:
-${template.style}. Focus on: ${template.focus}.
-
-📋 CANDIDATE PROFILE:
-Experience: ${analysis.experience}
-Key Skills: ${analysis.keySkills.join(', ') || 'General skills'}
-Companies: ${analysis.companies.join(', ') || 'Various companies'}
-Notable Projects: ${analysis.projects.slice(0, 2).join(' | ') || 'Various projects'}
-Achievements: ${analysis.achievements.join(' | ') || 'Professional accomplishments'}
-
-🗣️ INTERVIEW APPROACH:
-1. Start conversationally: "${this.conversationStarters[Math.floor(Math.random() * this.conversationStarters.length)]}"
-
-2. Then reference SPECIFIC items from their background:
-   - Pick actual projects/companies mentioned
-   - Ask about specific technologies they used
-   - Reference their achievements with follow-ups
-   
-3. Use natural transitions:
-   - "That's interesting, you mentioned [specific thing]..."
-   - "I'm curious about [specific project/skill]..."
-   - "Building on what you said about [specific detail]..."
-
-🎯 QUESTION EXAMPLES FOR THIS CANDIDATE:
-Based on their background, you might ask:
-${this._generateSampleQuestions(analysis, template, domain)}
-
-💬 CONVERSATION RULES:
-- Sound like a human interviewer having a real conversation
-- Always reference something specific from their actual background
-- Ask follow-up questions that build on their previous answers
-- Use "I see you..." "Looking at your..." "You mentioned..."
-- NO generic questions unless tied to their specific experience
-- React naturally to what they tell you
-
-🎭 REMEMBER:
-You're not reading from a script - you're having a genuine professional conversation with someone whose background you've studied. Be curious, be specific, be human.
-
-Ready to begin the interview.`;
-  }
-
-  _generateSampleQuestions(analysis, template, domain) {
-    const questions = [];
-    
-    // Project-based questions
-    if (analysis.projects.length > 0) {
-      const project = analysis.projects[0];
-      questions.push(`- "I see you ${project.toLowerCase().substring(0, 50)}... - what was your biggest technical challenge there?"`);
-    }
-    
-    // Skill-based questions
-    if (analysis.keySkills.length > 0) {
-      const skill = analysis.keySkills[0];
-      questions.push(`- "You have experience with ${skill} - tell me about a specific project where you really leveraged that."`);
-    }
-    
-    // Company-based questions
-    if (analysis.companies.length > 0) {
-      const company = analysis.companies[0];
-      questions.push(`- "During your time at ${company}, what was the most interesting problem you solved?"`);
-    }
-    
-    // Achievement-based questions
-    if (analysis.achievements.length > 0) {
-      const achievement = analysis.achievements[0];
-      questions.push(`- "You mentioned ${achievement.substring(0, 40)}... - walk me through your approach."`);
-    }
-
-    // Add domain-specific examples
-    if (template.resumeQuestions) {
-      const domainQ = template.resumeQuestions[0];
-      questions.push(`- Domain-specific: "${domainQ.replace('{technology}', analysis.keySkills[0] || 'your main technology').replace('{project}', 'your key project')}"`);
-    }
-
-    return questions.slice(0, 4).join('\n');
-  }
-
-  buildEvaluationPrompt(conversationHistory, domain) {
-    return `You are evaluating a candidate's interview performance for a ${domain} position.
-Provide detailed, constructive feedback based on the actual conversation.
-
-INTERVIEW TRANSCRIPT:
-${conversationHistory.map(msg => `${msg.speaker}: ${msg.content}`).join('\n\n')}
-
-Provide your evaluation in this exact format:
-
-🔹 **Overall Score: X/10**
-
-🔹 **Strengths:**
-- [List 3-4 specific strengths you observed, with examples from their answers]
-- [Focus on: technical knowledge, communication clarity, problem-solving approach, relevant experience]
-
-🔹 **Areas for Improvement:**
-- [List 2-3 specific areas where they could improve, with constructive suggestions]
-- [Be specific about what they could have done better in their actual responses]
-
-🔹 **Answer Analysis:**
-- [Review 2-3 specific answers they gave, commenting on depth, accuracy, and clarity]
-- [Mention which questions they handled well and which could have been stronger]
-
-🔹 **Technical/Domain Assessment:**
-- [Evaluate their domain-specific knowledge and practical experience]
-- [Comment on how well they demonstrated ${domain} competencies]
-
-🔹 **Final Recommendation:**
-**[Choose one: Strong Hire / Hire / Borderline - Hire / Borderline - No Hire / No Hire]**
-
-🔹 **Message to Candidate:**
-[Write a personalized, encouraging message directly to the candidate. Thank them for their time, highlight something positive from the interview, and provide next steps or general advice for their career growth. Keep it warm and professional.]
-
-Focus on providing actionable feedback based on their actual responses and demonstrated competencies.`;
-  }
+  /**
+   * Build system prompt for AIservice
+   */
 
   getAvailableDomains() {
-    return Object.keys(this.domainTemplates);
-  }
-
-  isValidDomain(domain) {
-    return this.domainTemplates.hasOwnProperty(domain);
-  }
-
-  // Helper method to get domain-specific follow-up questions
-  getDomainFollowUps(domain) {
-    return this.domainTemplates[domain]?.followUps || [
-      'Can you elaborate on that approach?',
-      'What challenges did you face there?',
-      'How did you measure success?',
-      'What would you do differently?'
+    return [
+      "Software Engineering",
+      "Data Science",
+      "Product Management",
+      "UI/UX Design",
+      "Cybersecurity",
+      "Cloud Computing",
+      "DevOps",
+      "Machine Learning",
+      "AI Research"
     ];
   }
 
-  // Helper method to get conversation transitions
-  getTransitionPhrase(topic = '') {
-    const transitions = this.transitions.slice();
-    if (topic) {
-      transitions.push(`Speaking of ${topic} - `, `You brought up ${topic}, which makes me wonder - `);
-    }
-    return transitions[Math.floor(Math.random() * transitions.length)];
+  isValidDomain(domain) {
+    return this.getAvailableDomains().includes(domain);
   }
 
-  // Generate contextual questions based on previous answers
-  generateContextualQuestion(domain, previousAnswer, resumeInsights) {
+  getInterviewPrompt(domain, resumeText, analysis) {
+    const template = this.domainTemplates[domain] || {
+      focus: 'relevant skills and professional experience',
+      style: 'be professional yet conversational, showing genuine interest in their background'
+    };
+
+    const experienceContext = this._getExperienceContext(analysis.experience);
+
+    return `You are conducting a ${domain} interview. ${template.style}.
+
+🎯 CANDIDATE PROFILE:
+Experience Level: ${analysis.experience} (${experienceContext})
+Key Technologies: ${analysis.keySkills.join(', ') || 'Various technologies'}
+Companies: ${analysis.companies.join(', ') || 'Previous work experience'}
+Industries: ${analysis.industries.join(', ') || 'Cross-industry experience'}
+
+📋 SPECIFIC PROJECTS TO REFERENCE:
+${analysis.projects.map((p, i) => `${i + 1}. ${p}`).join('\n') || 'Various projects mentioned in background'}
+
+🏆 ACHIEVEMENTS TO EXPLORE:
+${analysis.achievements.map((a, i) => `${i + 1}. ${a}`).join('\n') || 'Professional accomplishments'}
+
+🎪 INTERVIEW STRATEGY:
+Focus Areas: ${template.focus}
+
+Your conversation should feel natural and engaging. 
+- Acknowledge the candidate’s answers briefly before moving on.
+- Ask ONE focused question at a time.
+- Avoid repeating the same project/skill.
+- Use resume context wherever possible.
+- Adapt to students (minimal resume) with project/coursework/motivation questions.
+- Sound genuinely curious, not robotic.
+
+PHASE STRUCTURE:
+1. OPENING → "${this.conversationStarters[Math.floor(Math.random() * this.conversationStarters.length)]}"
+2. RESUME DEEP DIVE → Ask about projects, technologies, companies, or achievements
+3. DOMAIN EXPERTISE → Role-specific scenarios
+4. BEHAVIORAL → Leadership, teamwork, problem-solving
+5. CLOSING → Candidate’s questions, career goals
+`;
+  }
+
+  _getExperienceContext(level) {
+    const contexts = {
+      'entry-level': 'Focus on learning, projects, and motivation. Avoid expecting deep work experience.',
+      'junior-level': 'Ask about hands-on experience, learning curve, and teamwork.',
+      'mid-level': 'Explore ownership, problem-solving, and mentoring experiences.',
+      'senior-level': 'Ask about architecture, leadership, and strategic decisions.'
+    };
+    return contexts[level] || contexts['mid-level'];
+  }
+
+  /**
+   * Adaptive contextual question generator
+   */
+  generateContextualQuestion(domain, previousAnswer, resumeInsights, currentPhase) {
     const template = this.domainTemplates[domain];
     if (!template) return null;
 
-    const lowerAnswer = previousAnswer.toLowerCase();
-    
-    // Analyze what they mentioned to ask relevant follow-ups
-    if (lowerAnswer.includes('challenge') || lowerAnswer.includes('difficult')) {
-      return `${this.getTransitionPhrase()}you mentioned some challenges - how did you work through those obstacles?`;
+    const hooks = this._extractResponseHooks(previousAnswer);
+
+    switch (currentPhase) {
+      case 'resume_deep_dive':
+        return this._generateResumeQuestion(hooks, resumeInsights);
+      case 'domain_specific':
+        return this._generateDomainQuestion(template);
+      case 'behavioral':
+        return this._generateBehavioralQuestion(resumeInsights.experience);
+      default:
+        return this._generateFollowUpQuestion(hooks, template);
     }
-    
-    if (lowerAnswer.includes('team') || lowerAnswer.includes('collaborate')) {
-      return `${this.getTransitionPhrase()}teamwork - what's your approach to handling different perspectives in a team?`;
-    }
-    
-    if (lowerAnswer.includes('project')) {
-      const projects = resumeInsights.projects || [];
-      if (projects.length > 0) {
-        const project = projects[Math.floor(Math.random() * projects.length)];
-        return `That's interesting. Looking at another project you worked on - ${project.substring(0, 60)}... - how did that compare in terms of complexity?`;
+  }
+
+  _extractResponseHooks(answer) {
+    const hooks = { technologies: [], challenges: [], teams: [], achievements: [] };
+    const tech_patterns = /\b(react|python|javascript|aws|docker|sql|node|angular|vue)\b/gi;
+    hooks.technologies = [...new Set((answer.match(tech_patterns) || []).map(t => t.toLowerCase()))];
+
+    if (/challenge|difficult|problem|issue|obstacle/i.test(answer)) hooks.challenges.push('challenge');
+    if (/team|collaborate|work with|group|colleagues/i.test(answer)) hooks.teams.push('teamwork');
+    if (/achieved|accomplished|improved|increased|delivered/i.test(answer)) hooks.achievements.push('achievement');
+    return hooks;
+  }
+
+  _generateResumeQuestion(hooks, insights) {
+    for (const project of insights.projects || []) {
+      if (!this.askedQuestions.has(project)) {
+        this.askedQuestions.add(project);
+        return `I'd love to hear about your project: "${project.substring(0, 80)}...". What was your role and biggest contribution?`;
       }
     }
 
-    // Default to domain-specific scenarios
-    const scenarios = template.scenarioQuestions || [];
-    if (scenarios.length > 0) {
-      return scenarios[Math.floor(Math.random() * scenarios.length)];
+    for (const skill of insights.keySkills || []) {
+      if (!this.askedQuestions.has(skill)) {
+        this.askedQuestions.add(skill);
+        return `I noticed you’ve used ${skill}. Can you share a specific time you applied it to solve a problem?`;
+      }
+    }
+
+    if (insights.analysisQuality === 'minimal') {
+      return "Tell me about a project or subject from your coursework that you found most exciting.";
     }
 
     return null;
+  }
+
+  _generateDomainQuestion(template) {
+    const scenarios = template.scenarioQuestions || [];
+    return scenarios[Math.floor(Math.random() * scenarios.length)];
+  }
+
+  _generateBehavioralQuestion(experienceLevel) {
+    const behavioralQs = {
+      'senior-level': [
+        "Tell me about a time you had to make a difficult decision that affected the team.",
+        "How do you handle situations where your team disagrees with your technical approach?"
+      ],
+      'mid-level': [
+        "Tell me about a time you had to learn a new skill quickly for a project.",
+        "How do you handle competing priorities when everything seems urgent?"
+      ],
+      'junior-level': [
+        "Tell me about a mistake you made and how you handled it.",
+        "How do you approach learning new technologies outside of class?"
+      ],
+      'entry-level': [
+        "What motivated you to choose this field of study?",
+        "Tell me about a class project or hackathon you really enjoyed."
+      ]
+    };
+    const pool = behavioralQs[experienceLevel] || behavioralQs['mid-level'];
+    return pool[Math.floor(Math.random() * pool.length)];
+  }
+
+  _generateFollowUpQuestion(hooks, template) {
+    if (hooks.challenges.length) return "What was the toughest part of that challenge, and how did you overcome it?";
+    if (hooks.teams.length) return "How did collaboration with your team influence the outcome?";
+    if (hooks.achievements.length) return "What specific impact did that achievement have?";
+    const followUps = template.followUps || this.getDomainFollowUps('default');
+    return followUps[Math.floor(Math.random() * followUps.length)];
+  }
+
+  getDomainFollowUps() {
+    return [
+      "Can you walk me through your thought process there?",
+      "What challenges did you encounter with that approach?",
+      "How did you measure success in that case?",
+      "What would you do differently if you faced that again?",
+      "How did that experience shape your current approach?"
+    ];
   }
 }
 

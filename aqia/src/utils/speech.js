@@ -23,8 +23,8 @@ class SpeechService {
       window.SpeechRecognition || window.webkitSpeechRecognition;
     this.recognition = new SpeechRecognition();
 
-    this.recognition.continuous = true;       // Keep listening
-    this.recognition.interimResults = true;   // Get live partial results
+    this.recognition.continuous = true;     // keep listening until stopped
+    this.recognition.interimResults = true; // get live results
     this.recognition.lang = "en-US";
     this.recognition.maxAlternatives = 1;
   }
@@ -120,8 +120,8 @@ class SpeechService {
     }
   }
 
-  // ✅ Start Listening
-  async startListening(onPartial = null) {
+  // ✅ Start Listening (supports partial + final callbacks)
+  async startListening({ onPartial, onFinal } = {}) {
     return new Promise((resolve, reject) => {
       if (!this.recognition) return reject(new Error("Speech recognition not supported."));
       if (this.isListening) return reject(new Error("Already listening."));
@@ -135,17 +135,19 @@ class SpeechService {
 
       this.recognition.onresult = (event) => {
         let interimTranscript = "";
+
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             this.finalTranscript += transcript + " ";
+            if (onFinal) onFinal(this._normalizeTranscript(this.finalTranscript));
           } else {
             interimTranscript += transcript;
           }
         }
 
         const combined = (this.finalTranscript + " " + interimTranscript).trim();
-        if (onPartial) onPartial(combined); // ✅ live update in UI
+        if (onPartial) onPartial(this._normalizeTranscript(combined));
       };
 
       this.recognition.onend = () => {

@@ -1,83 +1,71 @@
+// AIservice.js
 import PromptBuilder from './promptBuilder';
 
 class AIservice {
   constructor(apiKey) {
     this.apiKey = apiKey;
     this.baseURL =
-      'https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent';
-    this.conversationHistory = [];
+      'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+
+    this.promptBuilder = new PromptBuilder();
     this.model = 'gemini-1.5-flash';
 
-    this.questionCount = 0;
-    this.maxQuestions = 5;
-    this.awaitingRetry = false;
-    this.systemPrompt = '';
-    this.promptBuilder = new PromptBuilder();
+    this.conversationHistory = [];
+    this.resumeInsights = null;
     this.domain = '';
     this.resumeText = '';
 
+    this.questionCount = 0;
+    this.maxQuestions = 10;
+    this.awaitingRetry = false;
+
     this.currentPhase = 'opening';
     this.askedQuestions = new Set();
-    this.resumeInsights = null;
+    this.systemPrompt = '';
   }
 
   generateSystemPrompt(domain, resumeText = '') {
-    const builder = new PromptBuilder();
-    this.resumeInsights = builder.analyzeResume(resumeText);
-    const interviewPrompt = builder.getInterviewPrompt(domain, resumeText, this.resumeInsights);
+    try {
+      this.resumeInsights = this.promptBuilder.analyzeResume(resumeText);
+    } catch {
+      this.resumeInsights = null;
+    }
+
+    const interviewPrompt = this.promptBuilder.getInterviewPrompt(
+      domain,
+      resumeText,
+      this.resumeInsights || {}
+    );
 
     return `${interviewPrompt}
 
-CRITICAL INSTRUCTIONS:
-- Only ONE question per response
-- Never generic, always resume-specific
-- Reference actual projects, companies, or skills
-- Phases: opening → resume_deep_dive → domain_specific → behavioral → closing
-- Max ${this.maxQuestions} questions, then STOP and wait for evaluation
-
-Start with a warm opener.`;
+RULES:
+- Ask only ONE clear question at a time.
+- Do NOT repeat resume lines word-for-word.
+- Use natural, conversational tone.
+- Start friendly → then ask about resume/projects → then technical/domain → then teamwork/behavioral → then closing.
+- No numbering (no "Question 1", "Phase 2").
+- Stop after ${this.maxQuestions} questions.`;
   }
 
   async initializeInterview(domain, resumeText = '') {
+    if (!domain) throw new Error('Domain is required.');
     this.domain = domain;
-    this.resumeText = resumeText;
-    this.currentPhase = 'opening';
-    this.askedQuestions.clear();
+    this.resumeText = resumeText || '';
     this.systemPrompt = this.generateSystemPrompt(domain, resumeText);
+
     this.conversationHistory = [];
     this.questionCount = 0;
     this.awaitingRetry = false;
+    this.currentPhase = 'opening';
+    this.askedQuestions = new Set();
 
     return await this.getNextQuestion();
   }
 
   async sendMessage(userResponse = '') {
-    // ✅ Hard stop if we hit max questions
-    if (this.questionCount >= this.maxQuestions && !this.awaitingRetry) {
-      return await this.endInterview();
-    }
-
-    this._updateInterviewPhase();
-
-    let contents = [];
-
-    if (this.conversationHistory.length === 0) {
-      contents.push({
-        role: 'user',
-        parts: [{ text: this.systemPrompt }],
-      });
-    } else {
-      contents = this.conversationHistory
-        .filter((msg) => msg.role === 'user')
-        .map((msg) => ({ role: 'user', parts: msg.parts }));
-    }
-
     if (userResponse && userResponse.trim()) {
-      const contextualPrompt = this._buildContextualPrompt(userResponse);
-      contents.push({
-        role: 'user',
-        parts: [{ text: `${userResponse}\n\n${contextualPrompt}` }],
-      });
+      this.conversationHistory.push({ role: 'user', parts: [{ text: userResponse }] });
 
       if (!this._isWeakAnswer(userResponse)) {
         this.questionCount++;
@@ -87,54 +75,64 @@ Start with a warm opener.`;
       }
     }
 
+    // End → evaluation
+    if (this.questionCount >= this.maxQuestions && !this.awaitingRetry) {
+      const evalPrompt = this.promptBuilder.buildEvaluationPrompt(
+        this.getTranscript(),
+        this.domain,
+        this.resumeInsights || {}
+      );
+      this.conversationHistory.push({ role: 'user', parts: [{ text: evalPrompt }] });
+      return evalPrompt;
+    }
+
+    // Update phase internally (not shown to AI)
+    if (userResponse && !this.awaitingRetry) {
+      if (this.questionCount === 1) this.currentPhase = 'resume';
+      else if (this.questionCount === 3) this.currentPhase = 'domain';
+      else if (this.questionCount === 6) this.currentPhase = 'behavioral';
+      else if (this.questionCount === this.maxQuestions - 1) this.currentPhase = 'closing';
+    }
+
+    // Build request
+    const contents = this.conversationHistory.map(m => ({
+      role: m.role,
+      parts: m.parts
+    }));
+
+    if (this.conversationHistory.length === 0) {
+      contents.push({ role: 'user', parts: [{ text: this.systemPrompt }] });
+    } else {
+      contents.push({
+        role: 'user',
+        parts: [{ text: this._phaseInstruction() }]
+      });
+    }
+
+    const body = {
+      contents,
+      generationConfig: { temperature: 0.7, maxOutputTokens: 400 }
+    };
+
     try {
       const response = await fetch(this.baseURL, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          'x-goog-api-key': this.apiKey,
+          'x-goog-api-key': this.apiKey
         },
-        body: JSON.stringify({
-          contents,
-          generationConfig: {
-            temperature: 0.8,
-            maxOutputTokens: 150,
-          },
-        }),
+        body: JSON.stringify(body)
       });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `API Error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
 
       const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+      const aiResponse =
+        data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim?.() || '';
 
-      if (!aiResponse) {
-        throw new Error('Invalid response format from API');
-      }
+      this.conversationHistory.push({ role: 'model', parts: [{ text: aiResponse }] });
 
-      if (userResponse) {
-        this.conversationHistory.push({
-          role: 'user',
-          parts: [{ text: userResponse }],
-        });
-      }
-      this.conversationHistory.push({
-        role: 'model',
-        parts: [{ text: aiResponse }],
-      });
-
-      const cleanQuestion = this._extractCoreQuestion(aiResponse);
-      this.askedQuestions.add(cleanQuestion.toLowerCase());
-
-      return cleanQuestion;
-    } catch (error) {
-      console.error('AI API Error:', error);
-      throw new Error(`Failed to get response from AI: ${error.message}`);
+      return this._extractCoreQuestion(aiResponse);
+    } catch (err) {
+      throw new Error(`AI API Error: ${err.message}`);
     }
   }
 
@@ -142,82 +140,29 @@ Start with a warm opener.`;
     return await this.sendMessage();
   }
 
-  async endInterview() {
+  async endInterviewEarly() {
     const evalPrompt = this.promptBuilder.buildEvaluationPrompt(
       this.getTranscript(),
-      this.domain
+      this.domain,
+      this.resumeInsights || {}
     );
-
-    try {
-      const response = await fetch(this.baseURL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-goog-api-key': this.apiKey,
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              role: 'user',
-              parts: [{ text: evalPrompt }],
-            },
-          ],
-          generationConfig: {
-            temperature: 0.7,
-            maxOutputTokens: 300,
-          },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(
-          `API Error: ${response.status} ${response.statusText} - ${errorText}`
-        );
-      }
-
-      const data = await response.json();
-      const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
-
-      if (!aiResponse) {
-        throw new Error('Invalid response format from API');
-      }
-
-      this.conversationHistory.push({
-        role: 'model',
-        parts: [{ text: aiResponse }],
-      });
-
-      // ✅ Persist review so FinalReview can show it
-      sessionStorage.setItem('final_review', aiResponse);
-
-      return aiResponse;
-    } catch (error) {
-      console.error('End Interview Error:', error);
-      throw new Error(`Failed to end interview: ${error.message}`);
-    }
+    return await this.sendMessage(evalPrompt);
   }
 
-  _updateInterviewPhase() {
-    if (this.questionCount <= 1) {
-      this.currentPhase = 'opening';
-    } else if (this.questionCount <= 2) {
-      this.currentPhase = 'resume_deep_dive';
-    } else if (this.questionCount <= 3) {
-      this.currentPhase = 'domain_specific';
-    } else if (this.questionCount <= 4) {
-      this.currentPhase = 'behavioral';
-    } else {
-      this.currentPhase = 'closing';
-    }
+  isInterviewComplete(response = '') {
+    if (this.questionCount >= this.maxQuestions && !this.awaitingRetry) return true;
+    const lower = (response || '').toLowerCase();
+    return ['score', 'strengths', 'weaknesses', 'evaluation', 'recommendation'].some(k =>
+      lower.includes(k)
+    );
   }
 
   getTranscript() {
     return this.conversationHistory
-      .filter((msg) => msg.role !== 'system')
-      .map((msg) => ({
-        speaker: msg.role === 'user' ? 'Candidate' : 'Interviewer',
-        content: msg.parts[0].text,
+      .filter(m => m.role !== 'system')
+      .map(m => ({
+        speaker: m.role === 'user' ? 'Candidate' : 'Interviewer',
+        content: m.parts?.[0]?.text || ''
       }));
   }
 
@@ -226,49 +171,50 @@ Start with a warm opener.`;
   }
 
   _isWeakAnswer(answer) {
-    const weakPhrases = [
-      'sorry',
-      "i don't know",
-      'not sure',
-      'no idea',
-      'skip',
-      "i don't have",
-      'never done',
-      "can't say",
-      'not familiar',
-    ];
-    return (
-      weakPhrases.some((p) => answer.toLowerCase().includes(p)) ||
-      answer.trim().length < 20
-    );
+    const weakPhrases = ["sorry", "i don't know", "not sure", "skip", "pass"];
+    return weakPhrases.some(p => answer.toLowerCase().includes(p));
   }
 
   _extractCoreQuestion(response) {
+    if (!response || typeof response !== 'string') return '';
+
     let cleaned = response
-      .replace(/^(Question\s*\d+[\s\.\:\-]*)/i, '')
-      .replace(/^\d+[\s\.\:\-]+/, '')
-      .replace(/^(Here('|)s|Now|Let('|)s|Next)\s+(question|is)?\s*\d*[\s\.\:\-]*/i, '')
-      .replace(/^(Great|Good|Thanks|Alright|Okay|So|Well)[\s,.\-]*/i, '')
-      .replace(/--- INTERVIEWER CONTEXT ---[\s\S]*$/i, '')
-      .trim();
+      .replace(/^(Question\s*\d+[:.\-]*)/i, '')
+      .replace(/^\d+[:.\-]+/, '')
+      .replace(/^(Here('|)s|Now|Next|Let('|)s)\s+(question|is)?\s*\d*[:.\-]*/i, '')
+      .replace(/^(Great|Good|Thanks|Alright|Okay|So|Well)[,.\-]*/i, '');
 
-    const sentences = cleaned
-      .split(/(?<=[?.!])\s+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 0);
-
-    const questionSentence = sentences.find((s) => s.endsWith('?'));
-
-    if (!questionSentence) {
-      const questionLike = sentences.find((s) =>
-        /\b(how|what|why|when|can|would|could|tell|explain|walk|describe|share)\b/i.test(
-          s
-        )
-      );
-      return questionLike || cleaned.trim();
+    if (!cleaned.trim().endsWith('?')) {
+      cleaned = cleaned.replace(/^you .*$/i, '').trim();
     }
 
-    return questionSentence;
+    const sentences = cleaned.split(/(?<=[?.!])\s+/).map(s => s.trim());
+    const qSentence = sentences.find(s => s.endsWith('?'));
+    return (
+      qSentence ||
+      sentences.find(s =>
+        /\b(how|what|why|when|where|which|who|can|could|would|should)\b/i.test(s)
+      ) ||
+      ''
+    );
+  }
+
+  // 🔥 Natural instructions instead of "phase names"
+  _phaseInstruction() {
+    switch (this.currentPhase) {
+      case 'opening':
+        return 'Ask a friendly question about their background or motivation.';
+      case 'resume':
+        return 'Ask about a project, skill, or achievement mentioned in their background.';
+      case 'domain':
+        return `Ask a practical question about ${this.domain} or problem-solving in that field.`;
+      case 'behavioral':
+        return 'Ask about teamwork, leadership, or how they handled challenges.';
+      case 'closing':
+        return 'Ask a closing question about future goals or if they have any questions.';
+      default:
+        return 'Ask a clear, relevant interview question.';
+    }
   }
 }
 

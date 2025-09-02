@@ -1,3 +1,4 @@
+// Onboarding.jsx (drop-in replacement)
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import * as pdfjsLib from 'pdfjs-dist';
@@ -12,12 +13,14 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
 ).toString();
 
 const Onboarding = ({ setAppData }) => {
-  // 🔑 Load API key from env (make sure .env has VITE_GEMINI_API_KEY=your_key_here)
   const defaultApiKey = import.meta.env.VITE_GEMINI_API_KEY || '';
 
   const [apiKey, setApiKey] = useState(defaultApiKey);
   const [domain, setDomain] = useState('');
   const [resumeText, setResumeText] = useState('');
+  const [questionCount, setQuestionCount] = useState(
+    Number(sessionStorage.getItem('user_question_count')) || 8
+  );
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
@@ -25,7 +28,6 @@ const Onboarding = ({ setAppData }) => {
   useEffect(() => {
     const storedDomain = sessionStorage.getItem('user_domain');
     const storedResume = sessionStorage.getItem('user_resume');
-
     if (storedDomain) setDomain(storedDomain);
     if (storedResume) setResumeText(storedResume);
   }, []);
@@ -33,7 +35,6 @@ const Onboarding = ({ setAppData }) => {
   // ✅ Resume upload
   const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
-
     if (!file || file.type !== 'application/pdf') {
       alert('❌ Please upload a valid PDF file only.');
       return;
@@ -86,12 +87,17 @@ const Onboarding = ({ setAppData }) => {
       alert('❌ Invalid domain selected.');
       return;
     }
+    if (!Number.isInteger(questionCount) || questionCount < 3 || questionCount > 20) {
+      alert('❗ Questions must be between 3 and 20.');
+      return;
+    }
 
     // Save session values
     sessionStorage.setItem('user_domain', domain);
     sessionStorage.setItem('user_resume', resumeText);
+    sessionStorage.setItem('user_question_count', String(questionCount));
 
-    setAppData({ apiKey, domain, resumeText });
+    setAppData({ apiKey, domain, resumeText, questionCount });
     navigate('/interview');
   };
 
@@ -117,6 +123,16 @@ const Onboarding = ({ setAppData }) => {
           <option key={d} value={d}>{d}</option>
         ))}
       </select>
+
+      <label>🔢 Number of Questions:</label>
+      <input
+        type="number"
+        min={3}
+        max={20}
+        value={questionCount}
+        onChange={(e) => setQuestionCount(Number(e.target.value))}
+        style={{ width: 120 }}
+      />
 
       <label>📄 Upload Resume (PDF only):</label>
       <input type="file" accept="application/pdf" onChange={handleResumeUpload} />

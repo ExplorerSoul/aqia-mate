@@ -1,4 +1,5 @@
-import { useEffect, useState } from 'react';
+// InterviewFlow.jsx 
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 
 import AIservice from '../utils/AIservice';
@@ -10,30 +11,26 @@ const InterviewFlow = ({ appData }) => {
   const apiKey = appData?.apiKey || sessionStorage.getItem('user_api_key');
   const domain = appData?.domain || sessionStorage.getItem('user_domain');
   const resumeText = appData?.resumeText || sessionStorage.getItem('user_resume');
+  const maxQuestions =
+    appData?.questionCount ||
+    Number(sessionStorage.getItem('user_question_count')) ||
+    8;
 
   const navigate = useNavigate();
 
   const [ai, setAi] = useState(null);
   const [questionNumber, setQuestionNumber] = useState(1);
   const [currentQuestion, setCurrentQuestion] = useState('');
-  const [transcript, setTranscript] = useState('');
+  const [transcript, setTranscript] = useState('');   // speech input
+  const [typedAnswer, setTypedAnswer] = useState(''); // manual input
   const [loading, setLoading] = useState(true);
   const [speaking, setSpeaking] = useState(false);
   const [listening, setListening] = useState(false);
   const [micError, setMicError] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const qaHistoryRef = useRef([]); // [{question, yourAnswer}]
 
-  // Initialize detailedReview storage
-  useEffect(() => {
-    const existing = sessionStorage.getItem('final_review_detailed');
-    if (!existing) {
-      sessionStorage.setItem(
-        'final_review_detailed',
-        JSON.stringify({ questions: [], strengths: [], weaknesses: [] })
-      );
-    }
-  }, []);
-
+  // Speak question, then listen
   const speakThenListen = async (text) => {
     setSpeaking(true);
     setMicError('');
@@ -47,57 +44,150 @@ const InterviewFlow = ({ appData }) => {
 
     setListening(true);
     try {
-      const userSpeech = await SpeechService.startListening();
-      setTranscript(userSpeech || '(No response)');
+      await SpeechService.startListening({
+        onPartial: (live) => setTranscript(live),
+        onFinal: (finalText) => setTranscript(finalText),
+      });
     } catch (err) {
       console.warn('❗ Mic error:', err.message);
-      setMicError('⚠️ Mic error or silence. You may click Proceed to continue.');
+      setMicError('⚠️ Mic error or silence. You may type instead.');
       setTranscript('(No response)');
     }
   };
 
-  const saveAnswerToSession = async (userAnswer, correctedAnswer) => {
-    const raw = sessionStorage.getItem('final_review_detailed');
-    const reviewData = raw ? JSON.parse(raw) : { questions: [], strengths: [], weaknesses: [] };
+  // Review and exit
+  const requestDetailedReviewAndExit = async ({ endedEarly = false } = {}) => {
+    try {
+      const convo = qaHistoryRef.current;
+      const brief = convo.map((x, i) =>
+        `Q${i + 1}: ${x.question}\nAnswer: ${x.yourAnswer}`
+      ).join('\n\n');
 
-    reviewData.questions.push({
-      question: currentQuestion,
-      yourAnswer: userAnswer,
-      correctedAnswer: correctedAnswer || ''
-    });
+      const prompt = {
+        role: 'user',
+        parts: [{
+          text: `
+      You are an experienced technical interviewer and coach.
+      Review the candidate's answers strictly in the following JSON schema:
 
-    sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
+      {
+        "score": {
+          "overall": number, 
+          "communication": number, 
+          "technical": number, 
+          "problemSolving": number, 
+          "behavioral": number
+        },
+        "summary": string,
+        "strengths": [string],
+        "weaknesses": [string],
+        "questions": [
+          { 
+            "question": string, 
+            "yourAnswer": string, 
+            "suggestedAnswer": string, 
+            "notes": string, 
+            "score": number 
+          }
+        ]
+      }
+
+      Rules:
+      - Always fill ALL fields.
+      - Scores must be between 0–10 per question, and 0–100 overall.
+      - "summary" should be 3–5 sentences of feedback.
+      - "strengths" and "weaknesses" must each contain at least 2 items.
+      - "suggestedAnswer" should be a short, improved version of the candidate’s answer.
+      - Do not include any text outside JSON.
+      - Do not return markdown, commentary, or code fences.
+
+      Answers to review:
+      ${brief}
+          `
+        }]
+      };
+
+      // Ask AI
+      ai.conversationHistory.push(prompt);
+      const raw = await ai.sendMessage();
+
+      // Try to extract JSON
+      let parsed = null;
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        const match = raw.match(/\{[\s\S]*\}/);
+        if (match) {
+          try { parsed = JSON.parse(match[0]); } catch {}
+        }
+      }
+
+      // Fallback if parsing fails
+      if (!parsed || !parsed.questions) {
+        parsed = {
+          score: { overall: 0, communication: 0, technical: 0, problemSolving: 0, behavioral: 0 },
+          summary: endedEarly ? 'Interview ended early.' : '⚠️ Review failed to generate fully.',
+          strengths: [],
+          weaknesses: [],
+          questions: convo.map(q => ({
+            question: q.question,
+            yourAnswer: q.yourAnswer,
+            suggestedAnswer: '',
+            notes: '',
+            score: 0
+          }))
+        };
+      }
+
+
+      sessionStorage.setItem('final_review_detailed', JSON.stringify(parsed));
+      navigate('/review');
+    } catch (err) {
+      console.error('❌ Review failed:', err);
+      const fallback = {
+        score: { overall: 0, communication: 0, technical: 0, problemSolving: 0, behavioral: 0 },
+        summary: '⚠️ Review generation failed.',
+        strengths: [],
+        weaknesses: [],
+        questions: qaHistoryRef.current
+      };
+      sessionStorage.setItem('final_review_detailed', JSON.stringify(fallback));
+      navigate('/review');
+    }
   };
 
+  // ✅ Proceed to next
   const handleProceed = async () => {
     setListening(false);
 
-    if (!transcript?.trim() || transcript === '(No response)') {
-      setMicError('⚠️ No clear response. Proceeding anyway...');
-    }
+    const finalAnswer =
+      (typedAnswer.trim() || transcript.trim()) || '(No response)';
+
+    qaHistoryRef.current.push({
+      question: currentQuestion,
+      yourAnswer: finalAnswer,
+    });
+
+    // reset inputs
+    setTranscript('');
+    setTypedAnswer('');
 
     try {
-      const aiResponse = await ai.sendMessage(transcript || '(No response)');
-
-      // Save the answer for this question
-      await saveAnswerToSession(transcript, aiResponse.correctedAnswer || aiResponse);
-
-      if (ai.isInterviewComplete(aiResponse)) {
-        // Optionally, AI can also give strengths & weaknesses here
-        const finalEvaluation = await ai.getFinalEvaluation();
-        const reviewRaw = sessionStorage.getItem('final_review_detailed');
-        const reviewData = reviewRaw ? JSON.parse(reviewRaw) : { questions: [], strengths: [], weaknesses: [] };
-        reviewData.strengths = finalEvaluation.strengths || [];
-        reviewData.weaknesses = finalEvaluation.weaknesses || [];
-        sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
-
-        navigate('/review');
+      if (questionNumber >= maxQuestions) {
+        await requestDetailedReviewAndExit({ endedEarly: false });
         return;
       }
 
-      setTranscript('');
-      setQuestionNumber((prev) => prev + 1);
-      setCurrentQuestion(aiResponse.nextQuestion || aiResponse);
+      const response = await ai.sendMessage(finalAnswer);
+
+      if (ai.isInterviewComplete?.(response)) {
+        await SpeechService.speak('Thanks. Generating your final review now.');
+        await requestDetailedReviewAndExit({ endedEarly: false });
+        return;
+      }
+
+      setQuestionNumber(prev => prev + 1);
+      setCurrentQuestion(response);
     } catch (err) {
       alert('❌ AI Error: ' + err.message);
     }
@@ -107,20 +197,7 @@ const InterviewFlow = ({ appData }) => {
     setListening(false);
     SpeechService.stopListening();
     SpeechService.stopSpeaking();
-
-    try {
-      const finalEvaluation = await ai.getFinalEvaluation();
-      const reviewRaw = sessionStorage.getItem('final_review_detailed');
-      const reviewData = reviewRaw ? JSON.parse(reviewRaw) : { questions: [], strengths: [], weaknesses: [] };
-      reviewData.strengths = finalEvaluation.strengths || [];
-      reviewData.weaknesses = finalEvaluation.weaknesses || [];
-      sessionStorage.setItem('final_review_detailed', JSON.stringify(reviewData));
-
-      navigate('/review');
-    } catch (err) {
-      console.error('❌ Failed to generate review:', err);
-      navigate('/review');
-    }
+    await requestDetailedReviewAndExit({ endedEarly: true });
   };
 
   const handleManualStop = () => {
@@ -135,13 +212,16 @@ const InterviewFlow = ({ appData }) => {
     }
   };
 
-  // Initialize interview and get Q1 from AI
+  // Init interview
   useEffect(() => {
     const init = async () => {
       try {
         const aiInstance = new AIservice(apiKey);
         setAi(aiInstance);
-        const firstQ = await aiInstance.initializeInterview(domain, resumeText);
+        const firstQ = await aiInstance.initializeInterview(domain, resumeText, {
+          maxQuestions,
+          noJargon: true
+        });
         setCurrentQuestion(firstQ);
         setInitialized(true);
       } catch (err) {
@@ -151,18 +231,14 @@ const InterviewFlow = ({ appData }) => {
         setLoading(false);
       }
     };
-
     if (!initialized) init();
-  }, [apiKey, domain, resumeText, initialized, navigate]);
+  }, [apiKey, domain, resumeText, initialized, navigate, maxQuestions]);
 
   // Speak each new question
   useEffect(() => {
-    if (!loading && currentQuestion) {
-      speakThenListen(currentQuestion);
-    }
+    if (!loading && currentQuestion) speakThenListen(currentQuestion);
   }, [currentQuestion, loading]);
 
-  // Stop voice and mic on exit
   useEffect(() => {
     return () => {
       SpeechService.stopSpeaking();
@@ -173,35 +249,59 @@ const InterviewFlow = ({ appData }) => {
   if (loading) return <p>🌀 Preparing your interview...</p>;
 
   return (
-    <div className="interview-container">
-      <h2>🧠 Interview Question {questionNumber}</h2>
+    <div className="interview-container max-w-3xl mx-auto p-4">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-xl font-semibold">
+          🧠 Interview Question {questionNumber}/{maxQuestions}
+        </h2>
+        <button
+          onClick={handleEarlyExit}
+          className="px-3 py-2 rounded-md font-medium"
+          style={{ backgroundColor: '#dc3545', color: 'white' }}
+        >
+          ❌ End Interview Now
+        </button>
+      </div>
 
       <VoiceOutput text={currentQuestion} />
 
-      <MicInput
-        listening={listening}
-        speaking={speaking}
-        error={micError}
-        onStopListening={handleManualStop}
-        onResumeListening={handleResume}
-      />
+      <div className="my-3">
+        <MicInput
+          listening={listening}
+          speaking={speaking}
+          error={micError}
+          onStopListening={handleManualStop}
+          onResumeListening={handleResume}
+        />
+      </div>
 
-      <button onClick={handleProceed}>✅ Proceed to Next</button>
-      <button
-        onClick={handleEarlyExit}
-        style={{ backgroundColor: '#dc3545', marginLeft: '1rem', color: 'white' }}
-      >
-        ❌ End Interview Now
-      </button>
+      {/* ✅ Separate typed vs speech answers */}
+      <div className="bg-gray-50 rounded-lg p-3 border">
+        <p className="text-sm font-medium mb-1">🗣️ Your Answer</p>
+        {transcript && !typedAnswer && (
+          <p className="text-gray-600 text-sm mb-2">🎤 Transcript: {transcript}</p>
+        )}
+        <textarea
+          className="w-full border rounded p-2"
+          rows={3}
+          placeholder="Type here (overrides spoken answer)..."
+          value={typedAnswer}
+          onChange={(e) => setTypedAnswer(e.target.value)}
+        />
+      </div>
 
-      <p>
-        <strong>🔊 Speaking:</strong> {speaking ? 'Yes' : 'No'} | 🎤 Listening: {listening ? 'Yes' : 'No'}
-      </p>
-      {transcript && (
-        <p>
-          <strong>You said:</strong> {transcript}
-        </p>
-      )}
+      <div className="mt-4 flex gap-2">
+        <button
+          onClick={handleProceed}
+          className="px-4 py-2 rounded-md bg-emerald-600 text-white"
+        >
+          ✅ Proceed to Next
+        </button>
+        <div className="ml-auto text-sm">
+          <strong>🔊 Speaking:</strong> {speaking ? 'Yes' : 'No'} |{' '}
+          <strong>🎤 Listening:</strong> {listening ? 'Yes' : 'No'}
+        </div>
+      </div>
     </div>
   );
 };
