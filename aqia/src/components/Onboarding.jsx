@@ -6,7 +6,7 @@ import 'pdfjs-dist/build/pdf.worker.min.mjs';
 
 import PromptBuilder from '../utils/promptBuilder';
 
-// ✅ Set global PDF worker
+//  Set global PDF worker
 pdfjsLib.GlobalWorkerOptions.workerSrc = new URL(
   'pdfjs-dist/build/pdf.worker.min.mjs',
   import.meta.url
@@ -24,7 +24,7 @@ const Onboarding = ({ setAppData }) => {
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
 
-  // ✅ Load saved values (except apiKey)
+  //  Load saved values (except apiKey)
   useEffect(() => {
     const storedDomain = sessionStorage.getItem('user_domain');
     const storedResume = sessionStorage.getItem('user_resume');
@@ -32,7 +32,7 @@ const Onboarding = ({ setAppData }) => {
     if (storedResume) setResumeText(storedResume);
   }, []);
 
-  // ✅ Resume upload
+  //  Resume upload
   const handleResumeUpload = async (e) => {
     const file = e.target.files[0];
     if (!file || file.type !== 'application/pdf') {
@@ -73,7 +73,7 @@ const Onboarding = ({ setAppData }) => {
     reader.readAsArrayBuffer(file);
   };
 
-  // ✅ Handle Start
+  //  Handle Start
   const handleStart = () => {
     if (!apiKey) {
       alert('❌ API key missing. Check your .env file (VITE_GEMINI_API_KEY).');
@@ -105,7 +105,7 @@ const Onboarding = ({ setAppData }) => {
     <div className="onboarding-container">
       <h1>AQIA - AI Interview Assistant</h1>
 
-      {/* 🔑 API key info */}
+      {/*  API key info */}
       {apiKey ? (
         <p style={{ fontSize: '0.9rem', color: 'gray' }}>
           🔑 Using system API key from .env
