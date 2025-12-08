@@ -1,0 +1,63 @@
+pipeline {
+    agent any
+
+    environment {
+        // Define environment variables if needed
+        PYTHON_VERSION = '3.10'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                checkout scm
+            }
+        }
+
+        stage('Setup & Test Backend') {
+            steps {
+                dir('server') {
+                    sh 'pip install -r requirements.txt'
+                    // Run tests (ignore warnings/errors for now if creds missing, or ensure mock works)
+                    sh 'python -m pytest test_main.py'
+                }
+            }
+        }
+
+        stage('Setup & Build Frontend') {
+            steps {
+                // Check if npm is installed, or use a tool definition
+                sh 'npm install'
+                sh 'npm run build'
+            }
+        }
+
+        stage('Deploy to Render') {
+            steps {
+                script {
+                    // Only run if master branch
+                    if (env.BRANCH_NAME == 'main' || env.BRANCH_NAME == 'master') {
+                         withCredentials([string(credentialsId: 'RENDER_DEPLOY_HOOK', variable: 'RENDER_HOOK')]) {
+                            echo 'Triggering Render Deployment...'
+                            // Use curl to trigger the hook
+                            sh "curl -X POST ${RENDER_HOOK}"
+                        }
+                    } else {
+                        echo 'Skipping deployment for non-main branch.'
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+        success {
+            echo 'Pipeline Succeeded!'
+        }
+        failure {
+            echo 'Pipeline Failed.'
+        }
+    }
+}

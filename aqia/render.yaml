@@ -1,0 +1,32 @@
+services:
+  # Backend Service (Python/FastAPI)
+  - type: web
+    name: aqia-backend
+    runtime: python
+    buildCommand: cd server && pip install -r requirements.txt
+    startCommand: cd server && python main.py
+    envVars:
+      - key: PYTHON_VERSION
+        value: 3.10.0
+      - key: COQUI_TOS_AGREED
+        value: "1"
+    # IMPORTANT: You must manually add your 'google-credentials.json' as a "Secret File" in Render Dashboard
+    # and map it to /etc/secrets/google-credentials.json or similar.
+    # Then set ENV var: GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/google-credentials.json
+
+  # Frontend Service (React/Vite)
+  - type: static
+    name: aqia-frontend
+    runtime: node
+    buildCommand: npm install && npm run build
+    publishDir: dist
+    envVars:
+      - key: NODE_VERSION
+        value: 20.11.0
+    # IMPORTANT: You need to rewire the frontend API calls to point to the backend URL.
+    # Typically done via VITE_API_URL env var if code supports it, or proxy.
+    # For now, we will assume you update the fetch URL in code or use a rewrite rule.
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -1,0 +1,204 @@
+.mic-input {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  align-items: center;
+  padding: 2rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 20px;
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.1);
+  max-width: 500px;
+  margin: 0 auto;
+}
+
+.mic-status {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  padding: 0.75rem 1.5rem;
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 50px;
+  backdrop-filter: blur(10px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.waveform {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  align-items: center;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.waveform > div:first-child {
+  display: flex;
+  gap: 4px;
+  height: 40px;
+  align-items: end;
+}
+
+.waveform span {
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(to top, #ff6b6b, #4ecdc4);
+  border-radius: 3px;
+  animation: pulse 1.2s infinite ease-in-out;
+  box-shadow: 0 0 10px rgba(255, 107, 107, 0.5);
+}
+
+.waveform span:nth-child(2) { animation-delay: 0.1s; }
+.waveform span:nth-child(3) { animation-delay: 0.2s; }
+.waveform span:nth-child(4) { animation-delay: 0.3s; }
+.waveform span:nth-child(5) { animation-delay: 0.4s; }
+
+@keyframes pulse {
+  0%, 100% { 
+    transform: scaleY(0.3);
+    opacity: 0.6;
+  }
+  50% { 
+    transform: scaleY(1.4);
+    opacity: 1;
+  }
+}
+
+.stop-btn {
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #ff4757, #ff3838);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 1rem;
+  box-shadow: 0 8px 20px rgba(255, 71, 87, 0.6);
+  transition: all 0.3s ease;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+  min-width: 140px;
+}
+
+.stop-btn:hover {
+  background: linear-gradient(135deg, #ff3838, #ff2f2f);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(255, 71, 87, 0.7);
+  border-color: rgba(255, 255, 255, 0.5);
+}
+
+.stop-btn:active {
+  transform: translateY(0);
+}
+
+.manual-input {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  width: 100%;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.manual-input .label {
+  font-weight: 600;
+  color: white;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.manual-input input {
+  padding: 1rem;
+  width: 100%;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.9);
+  backdrop-filter: blur(10px);
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+}
+
+.manual-input input:focus {
+  outline: none;
+  border-color: #4ecdc4;
+  box-shadow: 0 0 20px rgba(78, 205, 196, 0.3);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.manual-input input::placeholder {
+  color: #999;
+  font-style: italic;
+}
+
+.manual-input button {
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #4ecdc4, #44a08d);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 20px rgba(68, 160, 141, 0.4);
+}
+
+.manual-input button:hover {
+  background: linear-gradient(135deg, #44a08d, #3d8b7d);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(68, 160, 141, 0.5);
+}
+
+.manual-input button:active {
+  transform: translateY(0);
+}
+
+.mic-paused {
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.mic-paused button {
+  padding: 1rem 2rem;
+  background: linear-gradient(135deg, #5c7cfa, #748ffc);
+  color: white;
+  border: none;
+  border-radius: 25px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-shadow: 0 8px 20px rgba(92, 124, 250, 0.4);
+}
+
+.mic-paused button:hover {
+  background: linear-gradient(135deg, #4c63d2, #5c7cfa);
+  transform: translateY(-2px);
+  box-shadow: 0 12px 25px rgba(92, 124, 250, 0.5);
+}
+
+.mic-paused button:active {
+  transform: translateY(0);
+}
+
+.mic-error {
+  color: #ff6b6b;
+  background: rgba(255, 107, 107, 0.1);
+  padding: 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 107, 107, 0.3);
+  text-align: center;
+  font-weight: 500;
+  backdrop-filter: blur(10px);
+}

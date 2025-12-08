@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Browser TTS (Google) Test</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            padding: 20px;
+            max-width: 600px;
+            margin: 0 auto;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background-color: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h2 { margin-top: 0; color: #333; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; color: #555; }
+        select, textarea {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            box-sizing: border-box;
+            font-family: inherit;
+        }
+        textarea { height: 100px; resize: vertical; }
+        button {
+            padding: 12px 24px;
+            cursor: pointer;
+            background-color: #4285F4; /* Google Blue */
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            transition: background-color 0.2s;
+        }
+        button:hover { background-color: #3367D6; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        #status { margin-top: 15px; font-weight: 500; min-height: 24px; }
+        .highlight { color: #4285F4; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h2>Browser TTS Test</h2>
+        <p>Testing <code>window.speechSynthesis</code> directly.</p>
+
+        <label for="voiceSelect">Select Voice:</label>
+        <select id="voiceSelect"><option>Loading voices...</option></select>
+
+        <label for="textInput">Text to Speak:</label>
+        <textarea id="textInput">Hello! This is a test of the Google browser-based text to speech.</textarea>
+
+        <button id="speakBtn" onclick="speak()">Speak</button>
+        <button id="stopBtn" onclick="stop()" style="background-color: #dc3545; margin-left: 10px;">Stop</button>
+
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let voices = [];
+        const synth = window.speechSynthesis;
+        const statusEl = document.getElementById('status');
+
+        function populateVoices() {
+            voices = synth.getVoices();
+            const voiceSelect = document.getElementById('voiceSelect');
+            voiceSelect.innerHTML = '';
+
+            // Sort to prioritize Google voices
+            voices.sort((a, b) => {
+                const aName = a.name.toLowerCase();
+                const bName = b.name.toLowerCase();
+                if (aName.includes('google') && !bName.includes('google')) return -1;
+                if (!aName.includes('google') && bName.includes('google')) return 1;
+                return 0;
+            });
+
+            voices.forEach(voice => {
+                const option = document.createElement('option');
+                option.textContent = `${voice.name} (${voice.lang})`;
+                option.setAttribute('data-lang', voice.lang);
+                option.setAttribute('data-name', voice.name);
+                
+                // Set default if it's a Google US English voice
+                if (voice.name.includes('Google') && voice.lang === 'en-US') {
+                    option.selected = true;
+                }
+                
+                voiceSelect.appendChild(option);
+            });
+
+            if (voices.length === 0) {
+                 voiceSelect.innerHTML = '<option>No voices found. (Check browser permissions?)</option>';
+            }
+        }
+
+        populateVoices();
+        if (speechSynthesis.onvoiceschanged !== undefined) {
+            speechSynthesis.onvoiceschanged = populateVoices;
+        }
+
+        function speak() {
+            if (synth.speaking) {
+                console.error('speechSynthesis.speaking');
+                return;
+            }
+
+            const text = document.getElementById('textInput').value;
+            if (text !== '') {
+                const utterThis = new SpeechSynthesisUtterance(text);
+                const selectedOption = document.getElementById('voiceSelect').selectedOptions[0]?.getAttribute('data-name');
+                
+                const selectedVoice = voices.find(v => v.name === selectedOption);
+                if (selectedVoice) {
+                    utterThis.voice = selectedVoice;
+                }
+
+                utterThis.onstart = () => {
+                    statusEl.innerHTML = `Speaking with: <span class="highlight">${selectedVoice ? selectedVoice.name : 'Default'}</span>`;
+                    document.getElementById('speakBtn').disabled = true;
+                };
+
+                utterThis.onend = () => {
+                    statusEl.innerText = 'Finished.';
+                    document.getElementById('speakBtn').disabled = false;
+                };
+
+                utterThis.onerror = (e) => {
+                    statusEl.innerText = 'Error: ' + e.error;
+                    document.getElementById('speakBtn').disabled = false;
+                };
+
+                synth.speak(utterThis);
+            }
+        }
+
+        function stop() {
+            synth.cancel();
+            statusEl.innerText = 'Stopped.';
+            document.getElementById('speakBtn').disabled = false;
+        }
+    </script>
+</body>
+</html>
