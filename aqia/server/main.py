@@ -25,15 +25,15 @@ if os.path.exists(espeak_path):
          os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = espeak_lib
 
 # Force phonemizer to use the espeak backend
-from phonemizer.backend import EspeakBackend
 try:
+    from phonemizer.backend import EspeakBackend
     if 'espeak_lib' in locals():
         EspeakBackend.set_library(espeak_lib)
         print("✅ EspeakBackend library set successfully.")
     else:
         print("ℹ️  EspeakBackend using default system library (Linux/Mac).")
 except Exception as e:
-    print(f"⚠️  Failed to set EspeakBackend library: {e}")
+    print(f"⚠️  Failed to set EspeakBackend library (Non-critical if using system default): {e}")
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
@@ -45,8 +45,9 @@ if not hasattr(pu, "isin_mps_friendly"):
         return False
     pu.isin_mps_friendly = isin_mps_friendly
 
-from tts_service import TTSService
-from google_tts_service import GoogleTTSService
+# Defer importing TTS service implementations until runtime so the API
+# can start even when heavy TTS dependencies aren't installed.
+# We'll import each service inside its initialization try/except below.
 
 app = FastAPI()
 

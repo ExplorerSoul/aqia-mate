@@ -16,7 +16,8 @@ FROM python:3.11-slim
 RUN apt-get update && apt-get install -y \
     espeak-ng \
     libsndfile1 \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && ln -s /usr/bin/espeak-ng /usr/bin/espeak
 
 WORKDIR /app
 
