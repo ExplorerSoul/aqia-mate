@@ -42,5 +42,5 @@ ENV PROD=true
 ENV COQUI_TOS_AGREED=1
 
 # Command to run the application
-# We use server.main:app because we are in /app and main.py is in /app/server
-CMD ["uvicorn", "server.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# We use shell form to allow expansion of $PORT
+CMD uvicorn server.main:app --host 0.0.0.0 --port ${PORT:-8000}

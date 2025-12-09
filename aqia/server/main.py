@@ -27,8 +27,11 @@ if os.path.exists(espeak_path):
 # Force phonemizer to use the espeak backend
 from phonemizer.backend import EspeakBackend
 try:
-    EspeakBackend.set_library(espeak_lib)
-    print("✅ EspeakBackend library set successfully.")
+    if 'espeak_lib' in locals():
+        EspeakBackend.set_library(espeak_lib)
+        print("✅ EspeakBackend library set successfully.")
+    else:
+        print("ℹ️  EspeakBackend using default system library (Linux/Mac).")
 except Exception as e:
     print(f"⚠️  Failed to set EspeakBackend library: {e}")
 from fastapi.middleware.cors import CORSMiddleware
