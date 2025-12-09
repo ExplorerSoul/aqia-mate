@@ -129,7 +129,7 @@ const FinalReview = () => {
           <ul className="fr-list">
             {reviewData.weaknesses && reviewData.weaknesses.map((w, i) => (
               <li key={i} className="fr-list-item">
-                <span className="fr-icon-cross"></span>
+                <span className="fr-icon-cross">✘</span>
                 <span className="fr-list-text">{w}</span>
               </li>
             ))}
