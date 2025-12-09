@@ -35,17 +35,20 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy the backend code
 COPY server/ ./server/
 
+# Set environment variables for build and runtime
+ENV COQUI_TOS_AGREED=1
+ENV PROD=true
+ENV PORT=8000
+# EXPOSE is just metadata, but good practice
+EXPOSE 8000
+
+# Pre-download the TTS model so it's cached in the image
+# This prevents downloading it on every container start (cold start)
+RUN python server/download_model.py
+
 # Copy the built frontend assets from Stage 1
 # We'll place them in server/static so FastAPI can serve them
 COPY --from=frontend-builder /app/dist ./server/static
-
-# Expose port (Cloud Run defaults to 8080, but we can configure it)
-ENV PORT=8000
-EXPOSE 8000
-
-# Set environment variables
-ENV PROD=true
-ENV COQUI_TOS_AGREED=1
 
 # Command to run the application
 # We use shell form to allow expansion of $PORT

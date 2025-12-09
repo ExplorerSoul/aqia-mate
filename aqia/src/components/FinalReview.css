@@ -1,0 +1,388 @@
+/* FinalReview.css */
+
+.fr-container {
+  max-width: 64rem; /* max-w-5xl */
+  margin: 2rem auto; /* mt-8, mx-auto */
+  padding: 1rem; /* p-4 */
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; /* font-sans */
+  color: #1f2937; /* text-gray-800 */
+}
+
+@media (min-width: 768px) {
+  .fr-container {
+    padding: 2rem; /* md:p-8 */
+  }
+}
+
+/* Loading / Error */
+.fr-message-box {
+  max-width: 48rem; /* max-w-3xl */
+  margin: 1.5rem auto; /* mt-6 mx-auto */
+  padding: 1.5rem; /* p-6 */
+  background-color: #ffffff; /* bg-white */
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+}
+
+.fr-message-title {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 700; /* font-bold */
+  margin-bottom: 1rem; /* mb-4 */
+  display: flex;
+  align-items: center;
+  gap: 0.5rem; /* gap-2 */
+}
+
+.fr-loading-text {
+  color: #6b7280; /* text-gray-500 */
+  font-style: italic;
+}
+
+.fr-error-text {
+  color: #ef4444; /* text-red-500 */
+  font-weight: 500; /* font-medium */
+}
+
+/* Main Heading */
+.fr-heading-main {
+  font-size: 1.875rem; /* text-3xl */
+  line-height: 2.25rem;
+  font-weight: 800; /* font-extrabold */
+  text-align: center;
+  margin-bottom: 2.5rem; /* mb-10 */
+  color: #111827; /* text-gray-900 */
+  border-bottom: 1px solid #e5e7eb; /* border-b */
+  padding-bottom: 1rem; /* pb-4 */
+}
+
+/* Cards */
+.fr-card {
+  background-color: #ffffff; /* bg-white */
+  padding: 2rem; /* p-8 */
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); /* shadow-lg */
+  margin-bottom: 2rem; /* mb-8 */
+  border: 1px solid #f3f4f6; /* border-gray-100 */
+  text-align: center;
+}
+
+.fr-section-title {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 700; /* font-bold */
+  margin-bottom: 1.5rem; /* mb-6 */
+  color: #4f46e5; /* text-indigo-600 */
+  text-transform: uppercase;
+  letter-spacing: 0.025em; /* tracking-wide */
+}
+
+.fr-section-title-center {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* Score Grid */
+.fr-score-grid {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 2rem; /* gap-8 */
+}
+
+@media (min-width: 768px) {
+  .fr-score-grid {
+    gap: 3rem; /* md:gap-12 */
+  }
+}
+
+.fr-score-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.fr-score-large {
+  font-size: 2.25rem; /* text-4xl */
+  font-weight: 900; /* font-black */
+  color: #4338ca; /* text-indigo-700 */
+}
+
+.fr-score-medium {
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 700; /* font-bold */
+  color: #374151; /* text-gray-700 */
+}
+
+.fr-label-sub {
+  font-size: 0.875rem; /* text-sm */
+  font-weight: 600; /* font-semibold */
+  color: #6b7280; /* text-gray-500 */
+  margin-top: 0.25rem; /* mt-1 */
+}
+
+.fr-label-mini {
+  font-size: 0.75rem; /* text-xs */
+  font-weight: 600; /* font-semibold */
+  color: #9ca3af; /* text-gray-400 */
+  margin-top: 0.25rem; /* mt-1 */
+}
+
+.fr-divider {
+  width: 1px;
+  background-color: #e5e7eb; /* bg-gray-200 */
+  height: 4rem; /* h-16 */
+  display: none;
+}
+
+@media (min-width: 768px) {
+  .fr-divider {
+    display: block;
+  }
+}
+
+/* Summary Text */
+.fr-summary-text {
+  font-size: 1.125rem; /* text-lg */
+  line-height: 1.625; /* leading-relaxed */
+  color: #374151; /* text-gray-700 */
+  max-width: 48rem; /* max-w-3xl */
+  margin: 0 auto;
+}
+
+/* Strengths / Weaknesses Grid */
+.fr-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem; /* gap-6 */
+  margin-bottom: 2.5rem; /* mb-10 */
+}
+
+@media (min-width: 768px) {
+  .fr-grid-2 {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.fr-card-strength {
+  background-color: #f0fdf4; /* bg-green-50 */
+  padding: 1.5rem; /* p-6 */
+  border-radius: 1rem; /* rounded-2xl */
+  border: 1px solid #dcfce7; /* border-green-100 */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fr-title-strength {
+  color: #15803d; /* text-green-700 */
+}
+
+.fr-card-weakness {
+  background-color: #fef2f2; /* bg-red-50 */
+  padding: 1.5rem; /* p-6 */
+  border-radius: 1rem; /* rounded-2xl */
+  border: 1px solid #fee2e2; /* border-red-100 */
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); /* shadow-sm */
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.fr-title-weakness {
+  color: #b91c1c; /* text-red-700 */
+}
+
+.fr-list {
+  list-style: none;
+  padding: 0 1rem; /* px-4 */
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem; /* space-y-3 */
+}
+
+.fr-list-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem; /* gap-2 */
+}
+
+.fr-icon-check {
+  color: #22c55e; /* text-green-500 */
+  margin-top: 0.25rem;
+}
+
+.fr-icon-cross {
+  color: #ef4444; /* text-red-500 */
+  margin-top: 0.25rem;
+}
+
+.fr-list-text {
+  color: #1f2937; /* text-gray-800 */
+  font-weight: 500; /* font-medium */
+}
+
+/* Q&A Section */
+.fr-qa-section {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem; /* space-y-8 */
+}
+
+.fr-qa-heading {
+  font-size: 1.5rem; /* text-2xl */
+  font-weight: 700; /* font-bold */
+  text-align: center;
+  color: #111827; /* text-gray-900 */
+  margin-bottom: 1.5rem; /* mb-6 */
+}
+
+.fr-qa-card {
+  background-color: #ffffff; /* bg-white */
+  padding: 1.5rem; /* p-6 */
+  border-radius: 1rem; /* rounded-2xl */
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06); /* shadow-md */
+  border: 1px solid #e5e7eb; /* border-gray-200 */
+}
+
+@media (min-width: 768px) {
+  .fr-qa-card {
+    padding: 2rem; /* md:p-8 */
+  }
+}
+
+.fr-qa-header {
+  margin-bottom: 1.5rem; /* mb-6 */
+  border-bottom: 1px solid #e5e7eb; /* border-b */
+  padding-bottom: 1rem; /* pb-4 */
+  text-align: center;
+}
+
+.fr-badge-question {
+  display: inline-block;
+  background-color: #e0e7ff; /* bg-indigo-100 */
+  color: #3730a3; /* text-indigo-800 */
+  font-size: 0.75rem; /* text-xs */
+  padding: 0.25rem 0.75rem; /* px-3 py-1 */
+  border-radius: 9999px; /* rounded-full */
+  font-weight: 700; /* font-bold */
+  margin-bottom: 0.5rem; /* mb-2 */
+}
+
+.fr-question-text {
+  font-size: 1.25rem; /* text-xl */
+  font-weight: 600; /* font-semibold */
+  color: #111827; /* text-gray-900 */
+  line-height: 1.375; /* leading-snug */
+}
+
+.fr-qa-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 1.5rem; /* gap-6 */
+}
+
+@media (min-width: 768px) {
+  .fr-qa-grid {
+     grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.fr-col-answer {
+  display: flex;
+  flex-direction: column;
+}
+
+.fr-label-answer {
+  font-weight: 700; /* font-bold */
+  color: #6b7280; /* text-gray-500 */
+  text-transform: uppercase;
+  font-size: 0.75rem; /* text-xs */
+  margin-bottom: 0.5rem; /* mb-2 */
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .fr-label-answer {
+    text-align: left;
+  }
+}
+
+.fr-label-suggested {
+  color: #16a34a; /* text-green-600 */
+}
+
+.fr-box-answer {
+  background-color: #f9fafb; /* bg-gray-50 */
+  padding: 1.25rem; /* p-5 */
+  border-radius: 0.75rem; /* rounded-xl */
+  border: 1px solid #e5e7eb; /* border-gray-200 */
+  height: 100%;
+}
+
+.fr-box-suggested {
+  background-color: #f0fdf4; /* bg-green-50 */
+  padding: 1.25rem; /* p-5 */
+  border-radius: 0.75rem; /* rounded-xl */
+  border: 1px solid #bbf7d0; /* border-green-200 */
+  height: 100%;
+}
+
+.fr-text-answer {
+  color: #1f2937; /* text-gray-800 */
+  white-space: pre-wrap;
+  line-height: 1.625; /* leading-relaxed */
+}
+
+.fr-text-empty {
+  color: #9ca3af; /* text-gray-400 */
+  font-style: italic;
+}
+
+.fr-text-suggested {
+  color: #111827; /* text-gray-900 */
+  white-space: pre-wrap;
+  line-height: 1.625; /* leading-relaxed */
+  font-weight: 500; /* font-medium */
+}
+
+.fr-qa-footer {
+  margin-top: 1.5rem; /* mt-6 */
+  padding-top: 1rem; /* pt-4 */
+  border-top: 1px dashed #d1d5db; /* border-dashed border-gray-300 */
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.875rem; /* text-sm */
+  color: #4b5563; /* text-gray-600 */
+  gap: 0.5rem;
+}
+
+@media (min-width: 768px) {
+  .fr-qa-footer {
+    flex-direction: row;
+  }
+}
+
+.fr-note-text {
+  font-style: italic;
+  max-width: 42rem; /* max-w-2xl */
+  text-align: center;
+}
+
+@media (min-width: 768px) {
+  .fr-note-text {
+    text-align: left;
+  }
+}
+
+.fr-score-badge {
+  background-color: #f3f4f6; /* bg-gray-100 */
+  padding: 0.25rem 0.75rem; /* px-3 py-1 */
+  border-radius: 0.5rem; /* rounded-lg */
+  font-weight: 700; /* font-bold */
+  color: #374151; /* text-gray-700 */
+}

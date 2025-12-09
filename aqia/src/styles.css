@@ -295,7 +295,8 @@ body::before {
   font-size: 1.15rem;
   /* Slightly larger text */
   line-height: 1.6;
-  color: #334155;
+  color: #000000;
+  /* Pure black for better readability */
   background-color: #f8fafc;
   /* Very subtle grey for content area */
 }
@@ -318,14 +319,16 @@ body::before {
   display: flex;
   align-items: center;
   gap: 1rem;
-  padding-top: 1rem;
+  padding: 1.5rem;
+  /* Full padding to prevent sticking to edges */
   border-top: 1px solid rgba(0, 0, 0, 0.05);
   margin-top: auto;
 }
 
 .icon-btn {
   background: transparent;
-  border: 1px solid rgba(102, 126, 234, 0.3);
+  border: 1px solid rgba(102, 126, 234, 0.5);
+  /* Darker border */
   color: #667eea;
   padding: 0.5rem;
   border-radius: 8px;
@@ -339,13 +342,16 @@ body::before {
 .icon-btn:hover,
 .icon-btn.active {
   background: rgba(102, 126, 234, 0.1);
-  border-color: #667eea;
+  border-color: #5a67d8;
+  /* Darker hover border */
 }
 
 .submit-btn {
   margin-left: auto;
-  padding: 0.6rem 1.5rem;
-  background: var(--success-gradient);
+  padding: 0.6rem 2rem;
+  /* Wider button */
+  background: var(--primary-gradient);
+  /* Changed from success to primary for better contrast */
   color: white;
   border: none;
   border-radius: 8px;
