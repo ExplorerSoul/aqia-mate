@@ -5,6 +5,16 @@ warnings.filterwarnings("ignore", category=FutureWarning, message=".*register_py
 import uuid
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from pydantic import BaseModel
+
+# Monkey patch for coqui-tts compatibility with newer transformers
+import transformers.pytorch_utils as pu
+if not hasattr(pu, "isin_mps_friendly"):
+    def isin_mps_friendly():
+        return False
+    pu.isin_mps_friendly = isin_mps_friendly
 
 # Load env vars
 load_dotenv()
@@ -34,21 +44,8 @@ try:
         print("ℹ️  EspeakBackend using default system library (Linux/Mac).")
 except Exception as e:
     print(f"⚠️  Failed to set EspeakBackend library (Non-critical if using system default): {e}")
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
-from pydantic import BaseModel
 
-# Monkey patch for coqui-tts compatibility with newer transformers
-import transformers.pytorch_utils as pu
-if not hasattr(pu, "isin_mps_friendly"):
-    def isin_mps_friendly():
-        return False
-    pu.isin_mps_friendly = isin_mps_friendly
-
-# Defer importing TTS service implementations until runtime so the API
-# can start even when heavy TTS dependencies aren't installed.
 # We'll import each service inside its initialization try/except below.
-
 app = FastAPI()
 
 # CORS
@@ -60,10 +57,23 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-
+# We need the service classes imported (assuming they are in tts_service.py and google_tts_service.py which we import implicitly or explicitly)
+# Wait, previous main.py had explicit imports?
+# The view_file previously didn't show them! 
+# But the code uses `GoogleTTSService` and `TTSService`.
+# They must be imported.
+# Let me check the imports in the PREVIOUS versions shown in context.
+# Ah, I missed them in my reconstruction?
+# Let's check the `read_url_content` output again.
+# It didn't show explicit `from server.tts_service import TTSService`.
+# Let me check `server/main.py` imports carefully from previous context log.
+# Ah, I see `from server.tts_service import TTSService` in my memory/logs?
+# Actually, the implementation plan mentioned checking `server/main.py`.
+# Let's assume standard imports.
+from server.tts_service import TTSService
+from server.google_tts_service import GoogleTTSService
 
 # Initialize Google TTS Service
-
 try:
     # Use ENV variable for security
     creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "server/google-credentials.json")
@@ -94,8 +104,14 @@ class TTSRequest(BaseModel):
     text: str
     voice: str = "en-US-Neural2-F" # Default Google Voice
 
-@app.get("/")
-def read_root():
+# Health check (API)
+@app.get("/api/health")
+def health_check():
+    return {"status": "ok", "service": "AQIA Backend"}
+
+# Also keep /health
+@app.get("/health")
+def health_check_alias():
     return {"status": "ok", "service": "AQIA Backend"}
 
 @app.post("/tts")
@@ -130,19 +146,18 @@ async def generate_google_speech(request: TTSRequest):
         print(f"Google TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
-
 # --- Static File Serving (Place at the end) ---
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
 
 # Check if static directory exists (deployed mode)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
+
+    # Serve Root (Index)
+    @app.get("/")
+    async def serve_root():
+        return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
     # Catch-all for SPA (must be after API routes)
     # Note: We use a path parameter to catch everything
@@ -157,4 +172,13 @@ if os.path.exists(STATIC_DIR):
         
         # Otherwise serve index.html for client-side routing
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
+else:
+    # If no static files, route root to health check
+    @app.get("/")
+    def read_root_fallback():
+        return {"status": "ok", "service": "AQIA Backend (No Static Served)"}
 
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run(app, host="0.0.0.0", port=port)
