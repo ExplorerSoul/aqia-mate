@@ -17,3 +17,4 @@ server/google-credentials.json.json
 
 # Audio
 generated_audio/
+server/generated_audio/
