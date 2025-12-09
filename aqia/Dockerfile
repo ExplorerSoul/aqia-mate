@@ -4,6 +4,11 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# Accept API Key as build argument
+ARG VITE_GROQ_API_KEY
+# Set it as environment variable so Vite can inline it during build
+ENV VITE_GROQ_API_KEY=$VITE_GROQ_API_KEY
+
 # Build the app to the 'dist' folder
 RUN npm run build
 

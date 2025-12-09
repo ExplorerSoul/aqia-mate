@@ -5,18 +5,25 @@ $REGION = "us-central1"
 
 Write-Host "Using Project ID: $PROJECT_ID"
 
-# 1. Build and Submit to Google Container Registry
-Write-Host "Building and Submitting image to Google Container Registry..."
-gcloud builds submit --tag gcr.io/$PROJECT_ID/$APP_NAME .
+# 1. Read API Key from .env
+$EnvContent = Get-Content .env -ErrorAction SilentlyContinue
+$GROQ_KEY = ""
+foreach ($line in $EnvContent) {
+    if ($line -match "^VITE_GROQ_API_KEY=(.*)") {
+        $GROQ_KEY = $matches[1].Trim()
+        break
+    }
+}
 
-# 2. Deploy to Cloud Run
-Write-Host "Deploying to Cloud Run..."
-gcloud run deploy $APP_NAME `
-  --image gcr.io/$PROJECT_ID/$APP_NAME `
-  --platform managed `
-  --region $REGION `
-  --allow-unauthenticated `
-  --memory 2Gi `
-  --cpu 1
+if (-not $GROQ_KEY) {
+    Write-Error "❌ VITE_GROQ_API_KEY not found in .env file! Deployment cancelled."
+    exit 1
+}
 
-Write-Host "Deployment Complete!"
+Write-Host "✅ Found API Key. Proceeding with build..."
+
+# 2. Build and Deploy using Cloud Build Config
+Write-Host "Submitting build to Cloud Build..."
+gcloud builds submit --config cloudbuild.yaml --substitutions=_GROQ_API_KEY="$GROQ_KEY" .
+
+Write-Host "Deployment Triggered! Check Cloud Build logs for progress."
