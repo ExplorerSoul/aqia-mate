@@ -301,6 +301,11 @@ body::before {
   /* Very subtle grey for content area */
 }
 
+.transcript-content p,
+.transcript-content textarea {
+  color: #000000 !important;
+}
+
 /* Custom Scrollbar */
 .transcript-content::-webkit-scrollbar {
   width: 6px;
