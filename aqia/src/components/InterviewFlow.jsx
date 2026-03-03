@@ -32,8 +32,9 @@ const InterviewFlow = ({ appData }) => {
   const [initialized, setInitialized] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [started, setStarted] = useState(false); 
+  const [answerStartTime, setAnswerStartTime] = useState(null);
   
-  const qaHistoryRef = useRef([]); // [{question, yourAnswer}]
+  const qaHistoryRef = useRef([]); // [{question, yourAnswer, metrics}]
   const transcriptBoxRef = useRef(null);
 
   // Auto-scroll transcript
@@ -63,6 +64,7 @@ const InterviewFlow = ({ appData }) => {
       console.error('Speech error:', e);
     }
     setSpeaking(false);
+    setAnswerStartTime(Date.now()); // Track when the candidate should start answering
 
     // Only auto-listen if we are in Voice Mode
     if (inputMode === 'voice') {
@@ -121,15 +123,35 @@ const InterviewFlow = ({ appData }) => {
 
     finalAnswer = finalAnswer || '(No response)';
 
+    // Speech Metrics Calculation
+    const durationSeconds = answerStartTime ? Math.max(1, Math.round((Date.now() - answerStartTime) / 1000)) : 10;
+    const durationMinutes = durationSeconds / 60;
+    const wordCount = finalAnswer.split(/\s+/).filter(w => w.length > 0).length;
+    const wpm = durationMinutes > 0 ? Math.round(wordCount / durationMinutes) : 0;
+    
+    // Check for common filler words
+    const fillerWordsRegex = /\b(um|umm|uh|uhh|like|you know|basically|actually|literally)\b/gi;
+    const fillerMatch = finalAnswer.match(fillerWordsRegex);
+    const fillerCount = finalAnswer === '(No response)' ? 0 : (fillerMatch ? fillerMatch.length : 0);
+
+    const metrics = {
+      durationSeconds,
+      wordCount,
+      wpm,
+      fillerCount
+    };
+
     // Save
     qaHistoryRef.current.push({
       question: currentQuestion,
       yourAnswer: finalAnswer,
+      metrics: metrics
     });
 
     // Reset for next
     setTranscript('');
     setTypedAnswer('');
+    setAnswerStartTime(Date.now()); // Reset time for next input just in case
     // Keep input mode as is? Or reset to voice? Let's keep as is for continuity.
 
     try {
@@ -171,9 +193,10 @@ const InterviewFlow = ({ appData }) => {
           return;
         }
   
-        const brief = convo.map((x, i) =>
-          `Q${i + 1}: ${x.question}\nAnswer: ${x.yourAnswer}`
-        ).join('\n\n');
+        const brief = convo.map((x, i) => {
+          const m = x.metrics || { wpm: 0, fillerCount: 0 };
+          return `Q${i + 1}: ${x.question}\nAnswer: ${x.yourAnswer}\n[Speech Metrics: ${m.wpm} words/min, ${m.fillerCount} filler words]`;
+        }).join('\n\n');
   
         const prompt = `
         You are an experienced technical interviewer.
@@ -198,8 +221,8 @@ const InterviewFlow = ({ appData }) => {
         Rules:
         - Fill all fields.
         - Overall 0–100. Per-question score 0–10.
-        - summary = 3–5 sentences of feedback.
-        - strengths & weaknesses ≥ 2 items each.
+        - summary = 3–5 sentences of feedback. MUST comment on their communication confidence, speech pacing, and filler word usage based on the [Speech Metrics] provided.
+        - strengths & weaknesses ≥ 2 items each. Include verbal communication observations.
         - suggestedAnswer = improved version of candidate’s answer.
   
         ${endedEarly ? "Interview ended early — judge only provided answers." : ""}
@@ -234,7 +257,56 @@ const InterviewFlow = ({ appData }) => {
           };
         }
   
+        // Append calculated raw speech metrics for UI
+        let totalWpm = 0;
+        let totalFiller = 0;
+        let validAnswers = 0;
+        convo.forEach(x => {
+           if (x.metrics && x.metrics.wpm > 0) {
+              totalWpm += x.metrics.wpm;
+              totalFiller += x.metrics.fillerCount;
+              validAnswers++;
+           }
+        });
+        parsed.speechMetrics = {
+           avgWpm: validAnswers > 0 ? Math.round(totalWpm / validAnswers) : 0,
+           totalFiller: totalFiller
+        };
+  
         sessionStorage.setItem('final_review_detailed', JSON.stringify(parsed));
+
+        // --- Save interview to the database (best-effort, never blocks navigation) ---
+        try {
+          const token = localStorage.getItem('token');
+          const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+          const payload = {
+            job_category: domain || 'General',
+            overall_score: parsed.score?.overall ?? null,
+            questions: convo.map(item => ({
+              question_asked: item.question || '',
+              user_answer: item.yourAnswer || '',
+              ai_feedback: parsed.questions?.find(q => q.question === item.question)?.notes || '',
+              score: parsed.questions?.find(q => q.question === item.question)?.score ?? null,
+            })),
+            analytics_scores: parsed.score ? {
+              'Communication': parsed.score.communication ?? null,
+              'Technical': parsed.score.technical ?? null,
+              'Problem Solving': parsed.score.problemSolving ?? null,
+              'Behavioral': parsed.score.behavioral ?? null,
+            } : null,
+          };
+          await fetch(`${baseUrl}/api/interviews`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              ...(token ? { Authorization: `Bearer ${token}` } : {}),
+            },
+            body: JSON.stringify(payload),
+          });
+        } catch (saveErr) {
+          console.warn('Could not save interview to DB (non-critical):', saveErr);
+        }
+
         navigate('/review');
       } catch (err) {
         console.error('❌ Review failed:', err);
@@ -251,9 +323,9 @@ const InterviewFlow = ({ appData }) => {
   };
 
   const handleEarlyExit = async () => {
+    // Immediately kill all audio and mic before doing anything else
+    SpeechService.stopAll();
     setListening(false);
-    SpeechService.stopListening();
-    SpeechService.stopSpeaking();
     await requestDetailedReviewAndExit({ endedEarly: true });
   };
 
@@ -287,6 +359,7 @@ const InterviewFlow = ({ appData }) => {
   useEffect(() => {
     const init = async () => {
       try {
+        SpeechService.reset(); // Clear any leftover stopped state from previous session
         const aiInstance = new AIservice(apiKey);
         setAi(aiInstance);
         const firstQ = await aiInstance.initializeInterview(domain, resumeText, {
@@ -313,8 +386,8 @@ const InterviewFlow = ({ appData }) => {
 
   useEffect(() => {
     return () => {
-      SpeechService.stopSpeaking();
-      SpeechService.stopListening();
+      // Immediately kill all speech and mic when component unmounts (navigate away)
+      SpeechService.stopAll();
     };
   }, []);
 

@@ -4,6 +4,18 @@ import { useState, useEffect } from "react";
 import Onboarding from "./components/Onboarding";
 import InterviewFlow from "./components/InterviewFlow";
 import FinalReview from "./components/FinalReview";
+import AuthPage from "./components/AuthPage";
+import Dashboard from "./components/Dashboard"; // We'll build this next
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+
+// PrivateRoute component to protect routes
+const PrivateRoute = ({ children }) => {
+  const { user, loading } = useAuth();
+  
+  if (loading) return <div>Loading...</div>; // Could be a fancy spinner
+  
+  return user ? children : <Navigate to="/login" replace />;
+};
 
 function App() {
   const [appData, setAppData] = useState(() => {
@@ -21,23 +33,46 @@ function App() {
     if (appData.resumeText) sessionStorage.setItem("user_resume", appData.resumeText);
   }, [appData]);
 
+  const { user, loading } = useAuth();
   const router = createBrowserRouter([
     {
+      path: "/login",
+      element: user ? <Navigate to="/" replace /> : <AuthPage />
+    },
+    {
       path: "/",
-      element: <Onboarding setAppData={setAppData} />
+      element: (
+        <PrivateRoute>
+          <Dashboard setAppData={setAppData} />
+        </PrivateRoute>
+      )
+    },
+    {
+      path: "/setup",
+      element: (
+        <PrivateRoute>
+          <Onboarding setAppData={setAppData} />
+        </PrivateRoute>
+      )
     },
     {
       path: "/interview",
       element:
         appData.apiKey && appData.domain && appData.resumeText ? (
-          <InterviewFlow appData={appData} setGptService={setGptService} />
+          <PrivateRoute>
+             <InterviewFlow appData={appData} setGptService={setGptService} />
+          </PrivateRoute>
         ) : (
-          <Navigate to="/" replace />
+          <Navigate to="/setup" replace />
         )
     },
     {
       path: "/review",
-      element: <FinalReview gptService={gptService} />
+      element: (
+        <PrivateRoute>
+           <FinalReview gptService={gptService} />
+        </PrivateRoute>
+      )
     },
     {
       path: "*",
@@ -45,7 +80,15 @@ function App() {
     }
   ]);
 
+  if (loading) return <div>Initializing App...</div>;
+
   return <RouterProvider router={router} />;
 }
 
-export default App;
+export default function AppWithProvider() {
+  return (
+    <AuthProvider>
+      <App />
+    </AuthProvider>
+  );
+}

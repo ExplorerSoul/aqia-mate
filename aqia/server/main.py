@@ -4,10 +4,18 @@ import warnings
 warnings.filterwarnings("ignore", category=FutureWarning, message=".*register_pytree_node.*")
 import uuid
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
+from sqlalchemy.orm import Session
+from typing import Optional, List
+from jose import JWTError, jwt
+import datetime
+
+from database import engine, get_db
+import models
+from auth_utils import get_password_hash, verify_password, create_access_token
 
 # Monkey patch for coqui-tts compatibility with newer transformers
 import transformers.pytorch_utils as pu
@@ -45,6 +53,9 @@ try:
 except Exception as e:
     print(f"⚠️  Failed to set EspeakBackend library (Non-critical if using system default): {e}")
 
+# Initialize Database tables
+models.Base.metadata.create_all(bind=engine)
+
 # We'll import each service inside its initialization try/except below.
 app = FastAPI()
 
@@ -70,8 +81,8 @@ app.add_middleware(
 # Ah, I see `from server.tts_service import TTSService` in my memory/logs?
 # Actually, the implementation plan mentioned checking `server/main.py`.
 # Let's assume standard imports.
-from server.tts_service import TTSService
-from server.google_tts_service import GoogleTTSService
+from tts_service import TTSService
+from google_tts_service import GoogleTTSService
 
 # Initialize Google TTS Service
 try:
@@ -79,8 +90,8 @@ try:
     creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "server/google-credentials.json")
     
     # Handle the double extension issue if it persists in the filename on disk
-    if not os.path.exists(creds_path) and os.path.exists(creds_path + ".json"):
-         creds_path += ".json"
+    if not os.path.exists(creds_path) and os.path.exists("google-credentials.json"):
+         creds_path = "google-credentials.json"
         
     google_tts_service = GoogleTTSService(credentials_path=creds_path)
     print(f"✅ Google TTS Service Initialized using credentials at: {creds_path}")
@@ -145,6 +156,196 @@ async def generate_google_speech(request: TTSRequest):
     except Exception as e:
         print(f"Google TTS Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+# --- Authentication Endpoints ---
+
+class UserCreate(BaseModel):
+    email: EmailStr
+    password: str
+    name: Optional[str] = None
+
+class UserLogin(BaseModel):
+    email: EmailStr
+    password: str
+
+@app.post("/api/register")
+def register_user(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = models.User(
+        email=user.email,
+        password_hash=hashed_password,
+        name=user.name
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    # Return a token immediately upon registration for convenience
+    access_token = create_access_token(data={"sub": new_user.email, "id": new_user.id})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/api/login")
+def login(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if not db_user or not verify_password(user.password, db_user.password_hash):
+        raise HTTPException(status_code=401, detail="Incorrect email or password")
+    
+    access_token = create_access_token(data={"sub": db_user.email, "id": db_user.id})
+    return {"access_token": access_token, "token_type": "bearer"}
+
+# --- Auth Dependency ---
+
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM = "HS256"
+
+def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
+    """Decode the Bearer JWT token and return the DB user."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user = db.query(models.User).filter(models.User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+# --- Interview Endpoints ---
+
+class QuestionIn(BaseModel):
+    question_asked: str
+    user_answer: Optional[str] = None
+    ai_feedback: Optional[str] = None
+    score: Optional[int] = None
+
+class InterviewCreate(BaseModel):
+    job_category: str
+    overall_score: Optional[int] = None
+    questions: List[QuestionIn] = []
+    analytics_scores: Optional[dict] = None  # e.g. {"Communication": 80, "Technical": 75}
+
+@app.post("/api/interviews")
+def save_interview(
+    data: InterviewCreate,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Save a completed interview session and its Q&A to the database."""
+    session = models.InterviewSession(
+        user_id=current_user.id,
+        job_category=data.job_category,
+        overall_score=data.overall_score,
+        completed_at=datetime.datetime.utcnow()
+    )
+    db.add(session)
+    db.flush()  # get session.id before adding children
+
+    for q in data.questions:
+        question = models.QuestionHistory(
+            session_id=session.id,
+            question_asked=q.question_asked,
+            user_answer=q.user_answer,
+            ai_feedback=q.ai_feedback,
+            score=q.score
+        )
+        db.add(question)
+
+    # Save per-category analytics scores
+    if data.analytics_scores:
+        for category, score in data.analytics_scores.items():
+            if score is not None:
+                analytics = models.AnalyticsScore(
+                    session_id=session.id,
+                    category=category,
+                    score=int(score)
+                )
+                db.add(analytics)
+
+    db.commit()
+    db.refresh(session)
+    return {"id": session.id, "message": "Interview saved successfully"}
+
+@app.get("/api/interviews")
+def get_interviews(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Return all interview sessions for the current user, newest first."""
+    sessions = (
+        db.query(models.InterviewSession)
+        .filter(models.InterviewSession.user_id == current_user.id)
+        .order_by(models.InterviewSession.started_at.desc())
+        .all()
+    )
+    return [
+        {
+            "id": s.id,
+            "job_category": s.job_category,
+            "overall_score": s.overall_score,
+            "started_at": s.started_at.isoformat() if s.started_at else None,
+            "completed_at": s.completed_at.isoformat() if s.completed_at else None,
+        }
+        for s in sessions
+    ]
+
+@app.get("/api/dashboard")
+def get_dashboard(
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    """Return aggregated stats for the Dashboard."""
+    sessions = (
+        db.query(models.InterviewSession)
+        .filter(
+            models.InterviewSession.user_id == current_user.id,
+            models.InterviewSession.overall_score.isnot(None)
+        )
+        .order_by(models.InterviewSession.started_at.asc())
+        .all()
+    )
+
+    total_interviews = len(sessions)
+    highest_score = max((s.overall_score for s in sessions), default=0)
+    scores = [s.overall_score for s in sessions if s.overall_score is not None]
+    avg_score = round(sum(scores) / len(scores)) if scores else 0
+
+    # Recent interviews (last 6, newest first) for the history list
+    recent = sorted(sessions, key=lambda s: s.started_at, reverse=True)[:6]
+    recent_interviews = [
+        {
+            "id": s.id,
+            "role": s.job_category,
+            "date": s.started_at.strftime("%b %d, %Y") if s.started_at else "",
+            "score": s.overall_score,
+        }
+        for s in recent
+    ]
+
+    # Progress chart data — one point per interview in chronological order
+    progress_data = [
+        {
+            "date": s.started_at.strftime("%b %d") if s.started_at else "",
+            "score": s.overall_score,
+        }
+        for s in sessions
+    ]
+
+    return {
+        "total_interviews": total_interviews,
+        "highest_score": highest_score,
+        "avg_score": avg_score,
+        "recent_interviews": recent_interviews,
+        "progress_data": progress_data,
+    }
 
 # --- Static File Serving (Place at the end) ---
 from fastapi.staticfiles import StaticFiles

@@ -1,8 +1,10 @@
 // FinalReview.jsx (drop-in replacement)
 import { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import './FinalReview.css';
 
 const FinalReview = () => {
+  const navigate = useNavigate();
   const [reviewData, setReviewData] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -61,6 +63,7 @@ const FinalReview = () => {
   }
 
   const score = reviewData.score || null;
+  const speechMetrics = reviewData.speechMetrics || null;
 
   return (
     <div className="fr-container">
@@ -93,6 +96,32 @@ const FinalReview = () => {
                 <span className="fr-label-mini">BEHAVIORAL</span>
              </div>
           </div>
+        </div>
+      )}
+
+      {/* Speech Analytics Block */}
+      {speechMetrics && (
+        <div className="fr-card" style={{ background: 'linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%)', border: '1px solid #bbf7d0' }}>
+          <h3 className="fr-section-title" style={{ color: '#166534' }}>🎤 Speech Analytics</h3>
+          <div className="fr-score-grid">
+             <div className="fr-score-item">
+                <span className="fr-score-large" style={{ color: '#15803d' }}>{speechMetrics.avgWpm}</span>
+                <span className="fr-label-sub" style={{ color: '#166534' }}>WORDS / MINUTE</span>
+             </div>
+             <div className="fr-divider" style={{ backgroundColor: '#bbf7d0' }}></div>
+             <div className="fr-score-item">
+                <span className="fr-score-large" style={{ color: speechMetrics.totalFiller > 10 ? '#b91c1c' : '#15803d' }}>{speechMetrics.totalFiller}</span>
+                <span className="fr-label-sub" style={{ color: '#166534' }}>FILLER WORDS ("um", "uh")</span>
+             </div>
+          </div>
+          <p style={{ textAlign: 'center', marginTop: '1rem', color: '#15803d', fontSize: '0.9rem' }}>
+            {speechMetrics.avgWpm > 150 ? "You spoke a bit fast. Try to slow down to around 130 WPM." : 
+             speechMetrics.avgWpm < 100 ? "You spoke a bit slow. Try to pick up the pace slightly." : 
+             "Your pacing was excellent!"}
+            {' '}
+            {speechMetrics.totalFiller > 5 ? "Work on taking silent pauses instead of using filler words." : 
+             "Great job avoiding filler words!"}
+          </p>
         </div>
       )}
 
@@ -197,6 +226,28 @@ const FinalReview = () => {
         </div>
       )}
 
+      {/* Return to Dashboard */}
+      <div style={{ textAlign: 'center', marginTop: '2rem', paddingBottom: '3rem' }}>
+        <button
+          onClick={() => navigate('/dashboard')}
+          style={{
+            padding: '0.75rem 2.5rem',
+            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+            color: '#fff',
+            border: 'none',
+            borderRadius: '10px',
+            fontSize: '1rem',
+            fontWeight: '600',
+            cursor: 'pointer',
+            boxShadow: '0 4px 15px rgba(102,126,234,0.4)',
+            transition: 'opacity 0.2s',
+          }}
+          onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
+          onMouseOut={e => e.currentTarget.style.opacity = '1'}
+        >
+          🏠 Go to Dashboard
+        </button>
+      </div>
     </div>
   );
 };
