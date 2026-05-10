@@ -2,6 +2,7 @@ node_modules/
 dist/
 .vite/
 .vscode/
+venv/
 .DS_Store
 .env
 
@@ -18,3 +19,4 @@ server/google-credentials.json.json
 # Audio
 generated_audio/
 server/generated_audio/
+doc/

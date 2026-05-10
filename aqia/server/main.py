@@ -18,11 +18,15 @@ import models
 from auth_utils import get_password_hash, verify_password, create_access_token
 
 # Monkey patch for coqui-tts compatibility with newer transformers
-import transformers.pytorch_utils as pu
-if not hasattr(pu, "isin_mps_friendly"):
-    def isin_mps_friendly():
-        return False
-    pu.isin_mps_friendly = isin_mps_friendly
+# Only apply if torch is available (Coqui TTS dependency)
+try:
+    import transformers.pytorch_utils as pu
+    if not hasattr(pu, "isin_mps_friendly"):
+        def isin_mps_friendly():
+            return False
+        pu.isin_mps_friendly = isin_mps_friendly
+except (ImportError, ModuleNotFoundError):
+    print("⚠️  torch/transformers not available — Coqui TTS will be disabled.")
 
 # Load env vars
 load_dotenv()
@@ -81,8 +85,16 @@ app.add_middleware(
 # Ah, I see `from server.tts_service import TTSService` in my memory/logs?
 # Actually, the implementation plan mentioned checking `server/main.py`.
 # Let's assume standard imports.
-from tts_service import TTSService
 from google_tts_service import GoogleTTSService
+
+# Try to import Coqui TTS (requires torch — optional)
+try:
+    from tts_service import TTSService
+    _coqui_available = True
+except (ImportError, ModuleNotFoundError) as e:
+    print(f"⚠️  Coqui TTS unavailable (missing dependency: {e}). Local TTS disabled.")
+    TTSService = None
+    _coqui_available = False
 
 # Initialize Google TTS Service
 try:
@@ -101,8 +113,11 @@ except Exception as e:
 
 # Initialize Coqui TTS Service
 try:
-    tts_service = TTSService()
-    print("✅ Coqui TTS Service Globally Initialized")
+    if _coqui_available:
+        tts_service = TTSService()
+        print("✅ Coqui TTS Service Globally Initialized")
+    else:
+        tts_service = None
 except Exception as e:
     print(f"❌ Failed to init Coqui TTS: {e}")
     tts_service = None
