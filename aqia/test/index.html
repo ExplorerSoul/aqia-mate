@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AQIA — System Tests</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+      background: #f8fafc; color: #0f172a;
+      min-height: 100vh; padding: 2rem 1.5rem;
+    }
+    h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .subtitle { color: #64748b; font-size: 0.875rem; margin-top: 0.2rem; margin-bottom: 1.5rem; }
+
+    /* Config */
+    .config {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 1.25rem 1.5rem; margin-bottom: 1.5rem; max-width: 900px;
+    }
+    .config h3 { font-size: 0.72rem; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.07em; margin-bottom: 0.75rem; }
+    .config-row { display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; }
+    .config-row label { font-size: 0.8rem; font-weight: 600; color: #475569;
+      display: block; margin-bottom: 0.3rem; }
+    .config-row input {
+      padding: 0.5rem 0.75rem; border: 1px solid #e2e8f0; border-radius: 8px;
+      font-size: 0.875rem; font-family: inherit; color: #0f172a; width: 240px;
+    }
+    .config-row input:focus { outline: none; border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+
+    /* Run all */
+    .top-bar { display: flex; gap: 0.75rem; margin-bottom: 1.5rem; align-items: center; }
+    .btn-run-all {
+      padding: 0.65rem 1.5rem; background: #2563eb; color: #fff;
+      border: none; border-radius: 8px; font-size: 0.875rem; font-weight: 700;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+    }
+    .btn-run-all:hover { background: #1d4ed8; }
+    .summary { font-size: 0.875rem; color: #64748b; }
+    .summary b { color: #0f172a; }
+
+    /* Section */
+    .section-label {
+      font-size: 0.72rem; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.07em;
+      margin: 1.5rem 0 0.6rem;
+    }
+
+    /* Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 0.875rem; max-width: 900px; }
+
+    /* Card */
+    .card {
+      background: #fff; border: 1px solid #e2e8f0; border-radius: 10px;
+      padding: 1rem; display: flex; flex-direction: column; gap: 0.6rem;
+    }
+    .card-top { display: flex; align-items: center; justify-content: space-between; }
+    .card-title { font-size: 0.875rem; font-weight: 700; color: #0f172a; }
+    .method {
+      font-size: 0.65rem; font-weight: 700; padding: 2px 7px;
+      border-radius: 4px; text-transform: uppercase;
+    }
+    .get  { background: #dcfce7; color: #166534; }
+    .post { background: #dbeafe; color: #1e40af; }
+    .mic  { background: #fef3c7; color: #92400e; }
+    .card-path { font-size: 0.75rem; color: #64748b; font-family: monospace; }
+    .card-desc { font-size: 0.8rem; color: #475569; line-height: 1.45; }
+
+    /* Badge */
+    .badge {
+      display: inline-block; padding: 2px 9px; border-radius: 20px;
+      font-size: 0.7rem; font-weight: 700;
+    }
+    .pending { background: #fef9c3; color: #854d0e; }
+    .pass    { background: #dcfce7; color: #166534; }
+    .fail    { background: #fee2e2; color: #991b1b; }
+    .warn    { background: #fef3c7; color: #92400e; }
+    .skip    { background: #f1f5f9; color: #64748b; }
+
+    /* Run btn */
+    .run-btn {
+      padding: 0.45rem 1rem; background: #2563eb; color: #fff;
+      border: none; border-radius: 7px; font-size: 0.8rem; font-weight: 600;
+      cursor: pointer; font-family: inherit; transition: background 0.15s;
+      align-self: flex-start;
+    }
+    .run-btn:hover { background: #1d4ed8; }
+    .run-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* Result */
+    .result {
+      display: none; font-size: 0.72rem; font-family: monospace;
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 7px;
+      padding: 0.6rem; white-space: pre-wrap; word-break: break-all;
+      max-height: 140px; overflow-y: auto; color: #334155;
+    }
+    .result.show { display: block; }
+
+    /* TTS audio */
+    audio { width: 100%; }
+
+    /* Voice input */
+    .card-input input, .card-input textarea {
+      width: 100%; padding: 0.45rem 0.65rem; border: 1px solid #e2e8f0;
+      border-radius: 7px; font-size: 0.8rem; font-family: inherit; color: #0f172a;
+    }
+    .card-input textarea { height: 60px; resize: vertical; }
+  </style>
+</head>
+<body>
+
+<h1>AQIA — System Test Dashboard</h1>
+<p class="subtitle">All tests in one page. Served via Vite proxy — no CORS issues. Open at <code>localhost:5173/test/</code></p>
+
+<!-- Config -->
+<div class="config">
+  <h3>Test Credentials</h3>
+  <div class="config-row">
+    <div>
+      <label>Test Email</label>
+      <input id="cfg-email" value="testuser@aqia.dev" />
+    </div>
+    <div>
+      <label>Test Password</label>
+      <input id="cfg-pass" type="password" value="Test@1234" />
+    </div>
+  </div>
+</div>
+
+<!-- Top bar -->
+<div class="top-bar">
+  <button class="btn-run-all" onclick="runAll()">▶ Run All Automated Tests</button>
+  <span class="summary" id="summary">—</span>
+</div>
+
+<!-- 1. Health -->
+<div class="section-label">1 · Health</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-top"><span class="card-title">API Health</span><span class="method get">GET</span></div>
+    <div class="card-path">/api/health</div>
+    <div class="card-desc">Backend is reachable and running.</div>
+    <span class="badge pending" id="s-health">PENDING</span>
+    <button class="run-btn" onclick="t.health()">Run</button>
+    <div class="result" id="r-health"></div>
+  </div>
+</div>
+
+<!-- 2. Auth -->
+<div class="section-label">2 · Authentication</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-top"><span class="card-title">Register</span><span class="method post">POST</span></div>
+    <div class="card-path">/api/register</div>
+    <div class="card-desc">Creates user. Saves token for all subsequent tests.</div>
+    <span class="badge pending" id="s-register">PENDING</span>
+    <button class="run-btn" onclick="t.register()">Run</button>
+    <div class="result" id="r-register"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Login</span><span class="method post">POST</span></div>
+    <div class="card-path">/api/login</div>
+    <div class="card-desc">Login and store JWT token.</div>
+    <span class="badge pending" id="s-login">PENDING</span>
+    <button class="run-btn" onclick="t.login()">Run</button>
+    <div class="result" id="r-login"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Wrong Password → 401</span><span class="method post">POST</span></div>
+    <div class="card-path">/api/login</div>
+    <div class="card-desc">Auth must reject bad credentials with 401.</div>
+    <span class="badge pending" id="s-bad-login">PENDING</span>
+    <button class="run-btn" onclick="t.badLogin()">Run</button>
+    <div class="result" id="r-bad-login"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">No Token → 401</span><span class="method get">GET</span></div>
+    <div class="card-path">/api/dashboard</div>
+    <div class="card-desc">Protected endpoint must reject unauthenticated requests.</div>
+    <span class="badge pending" id="s-no-auth">PENDING</span>
+    <button class="run-btn" onclick="t.noAuth()">Run</button>
+    <div class="result" id="r-no-auth"></div>
+  </div>
+</div>
+
+<!-- 3. Protected -->
+<div class="section-label">3 · Protected Endpoints</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-top"><span class="card-title">Dashboard</span><span class="method get">GET</span></div>
+    <div class="card-path">/api/dashboard</div>
+    <div class="card-desc">Returns stats: total, highest, avg score, chart data.</div>
+    <span class="badge pending" id="s-dashboard">PENDING</span>
+    <button class="run-btn" onclick="t.dashboard()">Run</button>
+    <div class="result" id="r-dashboard"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">List Interviews</span><span class="method get">GET</span></div>
+    <div class="card-path">/api/interviews</div>
+    <div class="card-desc">Returns all sessions for the logged-in user.</div>
+    <span class="badge pending" id="s-list">PENDING</span>
+    <button class="run-btn" onclick="t.listInterviews()">Run</button>
+    <div class="result" id="r-list"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Save Interview</span><span class="method post">POST</span></div>
+    <div class="card-path">/api/interviews</div>
+    <div class="card-desc">Saves a mock session. 429 if already saved today (also a pass).</div>
+    <span class="badge pending" id="s-save">PENDING</span>
+    <button class="run-btn" onclick="t.saveInterview()">Run</button>
+    <div class="result" id="r-save"></div>
+  </div>
+</div>
+
+<!-- 4. AI Proxy -->
+<div class="section-label">4 · AI Proxy (Groq — key stays server-side)</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-top"><span class="card-title">Chat Completion</span><span class="method post">POST</span></div>
+    <div class="card-path">/api/chat</div>
+    <div class="card-desc">Proxies to Groq Llama-3.3. Verifies key is configured server-side.</div>
+    <span class="badge pending" id="s-chat">PENDING</span>
+    <button class="run-btn" onclick="t.chat()">Run</button>
+    <div class="result" id="r-chat"></div>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Whisper Transcription</span><span class="method mic">MIC</span></div>
+    <div class="card-path">/api/transcribe</div>
+    <div class="card-desc">Records 3s of mic audio and transcribes via backend proxy. Click Run and speak.</div>
+    <span class="badge skip" id="s-transcribe">MANUAL</span>
+    <button class="run-btn" onclick="t.transcribe()">Run (needs mic)</button>
+    <div class="result" id="r-transcribe"></div>
+  </div>
+</div>
+
+<!-- 5. TTS -->
+<div class="section-label">5 · Text-to-Speech</div>
+<div class="grid">
+  <div class="card">
+    <div class="card-top"><span class="card-title">Google TTS</span><span class="method post">POST</span></div>
+    <div class="card-path">/google-tts</div>
+    <div class="card-desc">Google Cloud Neural2/Chirp3 voice. Returns MP3.</div>
+    <div class="card-input"><input id="tts-google-text" value="Hello, this is a Google TTS test." /></div>
+    <span class="badge pending" id="s-google-tts">PENDING</span>
+    <button class="run-btn" onclick="t.googleTTS()">Run</button>
+    <div class="result" id="r-google-tts"></div>
+    <audio id="audio-google" controls style="display:none"></audio>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Coqui TTS (Local)</span><span class="method post">POST</span></div>
+    <div class="card-path">/tts</div>
+    <div class="card-desc">Local Coqui model. 503 if torch not installed — expected, not a failure.</div>
+    <div class="card-input"><input id="tts-coqui-text" value="Hello, this is a Coqui TTS test." /></div>
+    <span class="badge pending" id="s-coqui-tts">PENDING</span>
+    <button class="run-btn" onclick="t.coquiTTS()">Run</button>
+    <div class="result" id="r-coqui-tts"></div>
+    <audio id="audio-coqui" controls style="display:none"></audio>
+  </div>
+  <div class="card">
+    <div class="card-top"><span class="card-title">Browser TTS</span><span class="method mic">BROWSER</span></div>
+    <div class="card-path">window.speechSynthesis</div>
+    <div class="card-desc">Browser fallback voice. No backend needed.</div>
+    <div class="card-input"><input id="tts-browser-text" value="Hello, this is the browser TTS fallback." /></div>
+    <span class="badge skip" id="s-browser-tts">MANUAL</span>
+    <button class="run-btn" onclick="t.browserTTS()">Run (plays audio)</button>
+    <div class="result" id="r-browser-tts"></div>
+  </div>
+</div>
+
+<div style="height:3rem"></div>
+
+<script>
+  let token = null;
+  let passed = 0, failed = 0, total = 0;
+
+  const email = () => document.getElementById('cfg-email').value.trim();
+  const pass  = () => document.getElementById('cfg-pass').value.trim();
+  const auth  = () => token ? { 'Authorization': 'Bearer ' + token } : {};
+
+  function badge(id, state, label) {
+    const el = document.getElementById('s-' + id);
+    el.className = 'badge ' + state;
+    el.textContent = label || state.toUpperCase();
+  }
+
+  function result(id, text) {
+    const el = document.getElementById('r-' + id);
+    el.textContent = text;
+    el.classList.add('show');
+  }
+
+  function track(id, ok, label) {
+    total++;
+    if (ok) { passed++; badge(id, 'pass', label || 'PASS'); }
+    else     { failed++; badge(id, 'fail', label || 'FAIL'); }
+    document.getElementById('summary').innerHTML =
+      `<b>${passed}</b> passed &nbsp;·&nbsp; <b>${failed}</b> failed &nbsp;·&nbsp; ${total} run`;
+  }
+
+  async function api(method, path, body, extraHeaders) {
+    const opts = {
+      method,
+      headers: { 'Content-Type': 'application/json', ...auth(), ...(extraHeaders || {}) },
+    };
+    if (body) opts.body = JSON.stringify(body);
+    return fetch(path, opts);
+  }
+
+  const t = {
+
+    async health() {
+      badge('health', 'warn', 'RUNNING');
+      try {
+        const r = await fetch('/api/health');
+        const d = await r.json();
+        track('health', r.ok);
+        result('health', JSON.stringify(d, null, 2));
+      } catch(e) {
+        track('health', false);
+        result('health', 'ERROR: ' + e.message);
+      }
+    },
+
+    async register() {
+      badge('register', 'warn', 'RUNNING');
+      try {
+        const r = await api('POST', '/api/register',
+          { email: email(), password: pass(), name: 'Test User' });
+        const d = await r.json();
+        if (r.ok) token = d.access_token;
+        const alreadyExists = r.status === 400 && d.detail?.includes('already');
+        track('register', r.ok || alreadyExists, alreadyExists ? 'PASS (exists)' : undefined);
+        result('register', JSON.stringify(d, null, 2));
+      } catch(e) { track('register', false); result('register', 'ERROR: ' + e.message); }
+    },
+
+    async login() {
+      badge('login', 'warn', 'RUNNING');
+      try {
+        const r = await api('POST', '/api/login',
+          { email: email(), password: pass() });
+        const d = await r.json();
+        if (r.ok) token = d.access_token;
+        track('login', r.ok, r.ok ? 'PASS (token saved)' : undefined);
+        result('login', r.ok ? 'Token saved ✓' : JSON.stringify(d, null, 2));
+      } catch(e) { track('login', false); result('login', 'ERROR: ' + e.message); }
+    },
+
+    async badLogin() {
+      badge('bad-login', 'warn', 'RUNNING');
+      try {
+        const r = await api('POST', '/api/login',
+          { email: email(), password: 'wrongpassword999' });
+        const d = await r.json();
+        const ok = r.status === 401;
+        track('bad-login', ok, ok ? 'PASS (401)' : 'FAIL (expected 401, got ' + r.status + ')');
+        result('bad-login', 'Status: ' + r.status + '\n' + JSON.stringify(d, null, 2));
+      } catch(e) { track('bad-login', false); result('bad-login', 'ERROR: ' + e.message); }
+    },
+
+    async noAuth() {
+      badge('no-auth', 'warn', 'RUNNING');
+      try {
+        const r = await fetch('/api/dashboard');
+        const d = await r.json();
+        const ok = r.status === 401;
+        track('no-auth', ok, ok ? 'PASS (401)' : 'FAIL (got ' + r.status + ')');
+        result('no-auth', 'Status: ' + r.status + '\n' + JSON.stringify(d, null, 2));
+      } catch(e) { track('no-auth', false); result('no-auth', 'ERROR: ' + e.message); }
+    },
+
+    async dashboard() {
+      badge('dashboard', 'warn', 'RUNNING');
+      if (!token) { badge('dashboard', 'fail', 'NO TOKEN'); result('dashboard', 'Run Login first.'); return; }
+      try {
+        const r = await api('GET', '/api/dashboard');
+        const d = await r.json();
+        track('dashboard', r.ok);
+        result('dashboard', JSON.stringify(d, null, 2));
+      } catch(e) { track('dashboard', false); result('dashboard', 'ERROR: ' + e.message); }
+    },
+
+    async listInterviews() {
+      badge('list', 'warn', 'RUNNING');
+      if (!token) { badge('list', 'fail', 'NO TOKEN'); result('list', 'Run Login first.'); return; }
+      try {
+        const r = await api('GET', '/api/interviews');
+        const d = await r.json();
+        track('list', r.ok, r.ok ? 'PASS (' + d.length + ' sessions)' : undefined);
+        result('list', JSON.stringify(d, null, 2));
+      } catch(e) { track('list', false); result('list', 'ERROR: ' + e.message); }
+    },
+
+    async saveInterview() {
+      badge('save', 'warn', 'RUNNING');
+      if (!token) { badge('save', 'fail', 'NO TOKEN'); result('save', 'Run Login first.'); return; }
+      const payload = {
+        job_category: 'Backend', overall_score: 82,
+        questions: [{ question_asked: 'What is REST?', user_answer: 'An API style.',
+          ai_feedback: 'Good.', score: 8 }],
+        analytics_scores: { Communication: 80, Technical: 82 }
+      };
+      try {
+        const r = await api('POST', '/api/interviews', payload);
+        const d = await r.json();
+        const ok = r.ok || r.status === 429;
+        track('save', ok, r.status === 429 ? 'PASS (429 daily limit)' : r.ok ? 'PASS' : 'FAIL');
+        result('save', JSON.stringify(d, null, 2));
+      } catch(e) { track('save', false); result('save', 'ERROR: ' + e.message); }
+    },
+
+    async chat() {
+      badge('chat', 'warn', 'RUNNING');
+      if (!token) { badge('chat', 'fail', 'NO TOKEN'); result('chat', 'Run Login first.'); return; }
+      try {
+        const r = await api('POST', '/api/chat', {
+          messages: [{ role: 'user', content: 'Reply with exactly: proxy ok' }],
+          max_tokens: 10
+        });
+        const d = await r.json();
+        const reply = d.choices?.[0]?.message?.content || '';
+        track('chat', r.ok, r.ok ? 'PASS' : 'FAIL');
+        result('chat', r.ok ? 'Response: "' + reply + '"' : JSON.stringify(d, null, 2));
+      } catch(e) { track('chat', false); result('chat', 'ERROR: ' + e.message); }
+    },
+
+    async transcribe() {
+      badge('transcribe', 'warn', 'RUNNING');
+      if (!token) { badge('transcribe', 'fail', 'NO TOKEN'); result('transcribe', 'Run Login first.'); return; }
+      result('transcribe', '🎤 Recording 3 seconds — speak now…');
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const rec = new MediaRecorder(stream);
+        const chunks = [];
+        rec.ondataavailable = e => chunks.push(e.data);
+        rec.start();
+        await new Promise(res => setTimeout(res, 3000));
+        rec.stop();
+        stream.getTracks().forEach(t => t.stop());
+        await new Promise(res => rec.onstop = res);
+        const blob = new Blob(chunks, { type: 'audio/wav' });
+        const form = new FormData();
+        form.append('file', blob, 'recording.wav');
+        form.append('model', 'whisper-large-v3');
+        const r = await fetch('/api/transcribe', {
+          method: 'POST', headers: auth(), body: form
+        });
+        const d = await r.json();
+        badge('transcribe', r.ok ? 'pass' : 'fail');
+        result('transcribe', r.ok ? 'Transcript: "' + d.text + '"' : JSON.stringify(d, null, 2));
+      } catch(e) { badge('transcribe', 'fail'); result('transcribe', 'ERROR: ' + e.message); }
+    },
+
+    async googleTTS() {
+      badge('google-tts', 'warn', 'RUNNING');
+      const text = document.getElementById('tts-google-text').value;
+      try {
+        const r = await fetch('/google-tts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text, voice: 'en-US-Neural2-F' })
+        });
+        if (r.ok) {
+          const blob = await r.blob();
+          const audio = document.getElementById('audio-google');
+          audio.src = URL.createObjectURL(blob);
+          audio.style.display = 'block';
+          track('google-tts', true, 'PASS (' + (blob.size/1024).toFixed(0) + ' KB)');
+          result('google-tts', 'Audio received — press play above.');
+        } else {
+          const d = await r.json().catch(() => ({}));
+          track('google-tts', false);
+          result('google-tts', r.status + ': ' + (d.detail || r.statusText));
+        }
+      } catch(e) { track('google-tts', false); result('google-tts', 'ERROR: ' + e.message); }
+    },
+
+    async coquiTTS() {
+      badge('coqui-tts', 'warn', 'RUNNING');
+      const text = document.getElementById('tts-coqui-text').value;
+      try {
+        const r = await fetch('/tts', {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        if (r.ok) {
+          const blob = await r.blob();
+          const audio = document.getElementById('audio-coqui');
+          audio.src = URL.createObjectURL(blob);
+          audio.style.display = 'block';
+          track('coqui-tts', true, 'PASS (' + (blob.size/1024).toFixed(0) + ' KB)');
+          result('coqui-tts', 'Audio received — press play above.');
+        } else if (r.status === 503) {
+          badge('coqui-tts', 'warn', 'DISABLED');
+          result('coqui-tts', '503 — Coqui disabled (torch not installed). Expected.');
+        } else {
+          const d = await r.json().catch(() => ({}));
+          track('coqui-tts', false);
+          result('coqui-tts', r.status + ': ' + (d.detail || r.statusText));
+        }
+      } catch(e) { track('coqui-tts', false); result('coqui-tts', 'ERROR: ' + e.message); }
+    },
+
+    async browserTTS() {
+      badge('browser-tts', 'warn', 'RUNNING');
+      const text = document.getElementById('tts-browser-text').value;
+      return new Promise(resolve => {
+        const utt = new SpeechSynthesisUtterance(text);
+        const voices = window.speechSynthesis.getVoices();
+        const v = voices.find(v => v.name.includes('Google') && v.lang === 'en-US')
+               || voices.find(v => v.lang === 'en-US');
+        if (v) utt.voice = v;
+        utt.rate = 0.92; utt.pitch = 0.95;
+        utt.onend = () => {
+          badge('browser-tts', 'pass', 'PASS');
+          result('browser-tts', 'Played with: ' + (v?.name || 'default'));
+          resolve();
+        };
+        utt.onerror = (e) => {
+          badge('browser-tts', 'fail');
+          result('browser-tts', 'Error: ' + e.error);
+          resolve();
+        };
+        window.speechSynthesis.speak(utt);
+      });
+    },
+
+  };
+
+  async function runAll() {
+    passed = 0; failed = 0; total = 0;
+    document.getElementById('summary').innerHTML = 'Running…';
+    await t.health();
+    await t.register();
+    await t.login();
+    await t.badLogin();
+    await t.noAuth();
+    await t.dashboard();
+    await t.listInterviews();
+    await t.saveInterview();
+    await t.chat();
+    await t.googleTTS();
+    await t.coquiTTS();
+    await t.browserTTS();
+    // transcribe skipped — requires mic interaction
+    badge('transcribe', 'skip', 'MANUAL');
+  }
+</script>
+</body>
+</html>

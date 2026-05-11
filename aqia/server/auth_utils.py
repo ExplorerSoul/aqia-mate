@@ -3,8 +3,7 @@ import bcrypt
 from jose import JWTError, jwt
 import os
 from dotenv import load_dotenv
-
-load_dotenv()
+load_dotenv()  # must run before os.getenv
 
 # Secret key to sign the JWT tokens. MUST be defined in .env
 SECRET_KEY = os.getenv("SECRET_KEY")

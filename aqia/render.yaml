@@ -1,32 +1,58 @@
+databases:
+  # Using Neon.tech for PostgreSQL (free, never expires)
+  # Set DATABASE_URL manually in Render Dashboard env vars
+
 services:
-  # Backend Service (Python/FastAPI)
+  # ── Backend API (FastAPI) ──────────────────────────────────────────────────
   - type: web
     name: aqia-backend
     runtime: python
-    buildCommand: cd server && pip install -r requirements.txt
-    startCommand: cd server && python main.py
+    plan: free
+    buildCommand: pip install -r server/requirements.txt
+    startCommand: cd server && uvicorn main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
-        value: 3.10.0
+        value: "3.11"
+      - key: DATABASE_URL
+        sync: false          # Set manually: your Neon connection string
+      - key: REDIS_URL
+        fromService:
+          name: aqia-redis
+          type: redis
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true  # Render auto-generates a secure random value
+      - key: ALLOWED_ORIGINS
+        value: "https://your-app.vercel.app"   # ← replace with your Vercel URL after deploy
       - key: COQUI_TOS_AGREED
         value: "1"
-    # IMPORTANT: You must manually add your 'google-credentials.json' as a "Secret File" in Render Dashboard
-    # and map it to /etc/secrets/google-credentials.json or similar.
-    # Then set ENV var: GOOGLE_APPLICATION_CREDENTIALS=/etc/secrets/google-credentials.json
+      - key: GOOGLE_APPLICATION_CREDENTIALS
+        value: /etc/secrets/google-credentials.json
+      - key: GROQ_API_KEY
+        sync: false          # Set manually in Render Dashboard (secret)
+    # Upload google-credentials.json as a Secret File in Render Dashboard
+    # Path: /etc/secrets/google-credentials.json
 
-  # Frontend Service (React/Vite)
-  - type: static
-    name: aqia-frontend
-    runtime: node
-    buildCommand: npm install && npm run build
-    publishDir: dist
+  # ── Background Worker (RQ) ────────────────────────────────────────────────
+  - type: worker
+    name: aqia-worker
+    runtime: python
+    plan: free
+    buildCommand: pip install -r server/requirements.txt
+    startCommand: cd server && python worker.py
     envVars:
-      - key: NODE_VERSION
-        value: 20.11.0
-    # IMPORTANT: You need to rewire the frontend API calls to point to the backend URL.
-    # Typically done via VITE_API_URL env var if code supports it, or proxy.
-    # For now, we will assume you update the fetch URL in code or use a rewrite rule.
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: DATABASE_URL
+        sync: false
+      - key: REDIS_URL
+        fromService:
+          name: aqia-redis
+          type: redis
+          property: connectionString
+
+  # ── Redis (message queue broker) ─────────────────────────────────────────
+  - type: redis
+    name: aqia-redis
+    plan: free
+    maxmemoryPolicy: allkeys-lru

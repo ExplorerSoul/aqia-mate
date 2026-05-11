@@ -1,6 +1,8 @@
 fastapi>=0.109.0
-uvicorn>=0.27.0
+uvicorn[standard]>=0.27.0
 sqlalchemy>=2.0
+psycopg2-binary>=2.9.9
+alembic>=1.13.0
 pydantic[email]>=2.0
 python-jose[cryptography]>=3.3.0
 bcrypt>=4.0.0
@@ -12,3 +14,6 @@ transformers>=4.33.0
 google-cloud-texttospeech
 groq>=0.4.2
 pytest
+# Message queue
+rq>=1.16.0
+redis>=5.0.0

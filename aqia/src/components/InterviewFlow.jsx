@@ -7,7 +7,6 @@ import SpeechService from '../utils/speech';
 // import MicInput from './MicInput'; // Replaced by Inline Controls
 
 const InterviewFlow = ({ appData }) => {
-  const apiKey = appData?.apiKey || sessionStorage.getItem('user_api_key');
   const domain = appData?.domain || sessionStorage.getItem('user_domain');
   const resumeText = appData?.resumeText || sessionStorage.getItem('user_resume');
   const maxQuestions =
@@ -360,7 +359,7 @@ const InterviewFlow = ({ appData }) => {
     const init = async () => {
       try {
         SpeechService.reset(); // Clear any leftover stopped state from previous session
-        const aiInstance = new AIservice(apiKey);
+        const aiInstance = new AIservice();
         setAi(aiInstance);
         const firstQ = await aiInstance.initializeInterview(domain, resumeText, {
           maxQuestions,
@@ -391,16 +390,16 @@ const InterviewFlow = ({ appData }) => {
     };
   }, []);
 
-  if (loading) return <p className="p-10 text-center text-lg">🌀 Preparing your interview...</p>;
+  if (loading) return <div className="loading">🌀 Preparing your interview...</div>;
 
   if (!started) {
     return (
-      <div className="interview-container max-w-3xl mx-auto p-4 flex flex-col items-center justify-center h-screen">
-        <h2 className="text-2xl font-bold mb-4">Ready to Interview?</h2>
-        <p className="mb-6 text-gray-600">Click below to start. This ensures audio playback works correctly.</p>
-        <button 
+      <div className="interview-start-screen">
+        <h2 className="interview-start-title">Ready to Interview?</h2>
+        <p className="interview-start-subtitle">Click below to start. This ensures audio playback works correctly.</p>
+        <button
           onClick={() => setStarted(true)}
-          className="px-6 py-3 bg-blue-600 text-white rounded-lg text-lg hover:bg-blue-700 transition"
+          className="interview-start-btn"
         >
           🚀 Start Interview
         </button>
@@ -410,7 +409,7 @@ const InterviewFlow = ({ appData }) => {
 
   return (
     <div className="interview-container">
-      <div className="flex items-center justify-between mb-2">
+      <div className="interview-header-row">
          {/* Helper header if needed, or keeping it clean */}
       </div>
 
@@ -419,7 +418,7 @@ const InterviewFlow = ({ appData }) => {
         <div className="transcript-box">
           <div className="transcript-header">
             <h3>Question {questionNumber}</h3>
-            {speaking && <span className="text-sm opacity-90 animate-pulse">🔊 Speaking...</span>}
+            {speaking && <span className="status-indicator speaking">🔊 Speaking...</span>}
           </div>
           <div className="transcript-content">
              <p className="whitespace-pre-line">
@@ -433,25 +432,24 @@ const InterviewFlow = ({ appData }) => {
           <div className="transcript-header">
              <h3>Your Answer</h3>
              {inputMode === 'voice' && listening && (
-                <span className="text-sm opacity-90 animate-pulse">🎤 Listening...</span>
+                <span className="status-indicator listening">🎤 Listening...</span>
              )}
           </div>
           
           <div className="transcript-content" ref={transcriptBoxRef}>
             {inputMode === 'voice' ? (
                 <>
-                  <p className="whitespace-pre-line text-lg">
-                    {transcript || <span className="text-gray-400 italic">Listening...</span>}
+                  <p className="transcript-text">
+                    {transcript || <span className="transcript-placeholder">Listening...</span>}
                   </p>
-                  {isTranscribing && <p className="text-sm text-blue-600 mt-2">⏳ Finalizing transcript...</p>}
+                  {isTranscribing && <p className="transcript-transcribing">⏳ Finalizing transcript...</p>}
                 </>
             ) : (
                 <textarea 
-                  className="w-full h-full p-2 border rounded-md resize-none focus:outline-none focus:ring-2 focus:ring-blue-400"
+                  className="interview-textarea"
                   placeholder="Type your answer here..."
                   value={typedAnswer}
                   onChange={(e) => setTypedAnswer(e.target.value)}
-                  style={{ background: 'transparent', border: 'none' }}
                 />
             )}
           </div>
@@ -486,7 +484,7 @@ const InterviewFlow = ({ appData }) => {
       </div>
 
       <div className="interview-controls">
-         <button onClick={handleProceed} className="px-6 py-2 rounded-lg bg-gray-200 text-gray-800 font-medium hover:bg-gray-300">
+         <button onClick={handleProceed} className="interview-next-btn">
             Next Question
          </button>
          <button onClick={handleEarlyExit} className="stop-btn">

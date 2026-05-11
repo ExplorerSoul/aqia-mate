@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AQIA — STT Test</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+      background: #f8fafc; color: #0f172a;
+      min-height: 100vh; padding: 2rem 1.5rem;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .page-header { width: 100%; max-width: 600px; margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .page-header p  { color: #64748b; font-size: 0.875rem; margin-top: 0.2rem; }
+    .card {
+      width: 100%; max-width: 600px; background: #fff;
+      border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;
+    }
+    label { font-size: 0.82rem; font-weight: 600; color: #475569; display: block; margin-bottom: 0.3rem; }
+    input {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #e2e8f0;
+      border-radius: 8px; font-size: 0.875rem; font-family: inherit; color: #0f172a;
+    }
+    input:focus { outline: none; border-color: #93c5fd; box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    .btn-row { display: flex; gap: 0.75rem; }
+    button {
+      padding: 0.6rem 1.4rem; border: none; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      transition: background 0.15s; font-family: inherit;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-start { background: #2563eb; color: #fff; }
+    .btn-start:hover { background: #1d4ed8; }
+    .btn-stop  { background: #dc2626; color: #fff; }
+    .btn-stop:hover  { background: #b91c1c; }
+    .status {
+      font-size: 0.875rem; font-weight: 600; padding: 0.5rem 0.75rem;
+      border-radius: 8px; background: #f8fafc; color: #475569;
+      min-height: 2.25rem; display: flex; align-items: center;
+    }
+    .recording  { background: #fef2f2; color: #991b1b; }
+    .processing { background: #fefce8; color: #854d0e; }
+    .done       { background: #f0fdf4; color: #166534; }
+    .error      { background: #fef2f2; color: #991b1b; }
+    .output-label { font-size: 0.72rem; font-weight: 700; color: #94a3b8;
+      text-transform: uppercase; letter-spacing: 0.07em; }
+    .output-box {
+      background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px;
+      padding: 1rem; min-height: 90px; font-size: 0.9rem; color: #0f172a;
+      line-height: 1.6; white-space: pre-wrap;
+    }
+    .note { font-size: 0.78rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+<div class="page-header">
+  <h1>🎤 STT Test — Whisper via Backend Proxy</h1>
+  <p>Records mic audio and transcribes via <code>/api/transcribe</code>. Groq key stays server-side.</p>
+</div>
+<div class="card">
+  <div>
+    <label>JWT Token (login at <a href="/test/" target="_blank">test dashboard</a> first)</label>
+    <input id="token" placeholder="Paste Bearer token here" />
+  </div>
+  <div class="btn-row">
+    <button class="btn-start" id="startBtn" onclick="startRecording()">⏺ Start Recording</button>
+    <button class="btn-stop"  id="stopBtn"  onclick="stopRecording()" disabled>⏹ Stop & Transcribe</button>
+  </div>
+  <div class="status" id="status">Ready — paste token and click Start.</div>
+  <div class="output-label">Transcription</div>
+  <div class="output-box" id="output">Result will appear here…</div>
+  <p class="note">ℹ️ Groq API key is never sent to the browser. All AI calls go through the backend proxy.</p>
+</div>
+<script>
+  let recorder = null, chunks = [], recording = false;
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status ' + (cls || '');
+  }
+
+  async function startRecording() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      recorder = new MediaRecorder(stream);
+      chunks = [];
+      recorder.ondataavailable = e => chunks.push(e.data);
+      recorder.start();
+      recording = true;
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('stopBtn').disabled = false;
+      document.getElementById('output').textContent = '';
+      setStatus('🔴 Recording… speak now, then click Stop.', 'recording');
+    } catch(e) {
+      setStatus('Mic error: ' + e.message, 'error');
+    }
+  }
+
+  function stopRecording() {
+    if (!recorder || !recording) return;
+    recorder.onstop = async () => {
+      recording = false;
+      document.getElementById('startBtn').disabled = false;
+      document.getElementById('stopBtn').disabled = true;
+      recorder.stream.getTracks().forEach(t => t.stop());
+      setStatus('⏳ Processing audio…', 'processing');
+
+      const token = document.getElementById('token').value.trim();
+      if (!token) { setStatus('❌ No token — paste a JWT token first.', 'error'); return; }
+
+      const form = new FormData();
+      form.append('file', new Blob(chunks, { type: 'audio/wav' }), 'recording.wav');
+      form.append('model', 'whisper-large-v3');
+      try {
+        const r = await fetch('/api/transcribe', {
+          method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: form
+        });
+        const d = await r.json();
+        if (r.ok) {
+          document.getElementById('output').textContent = d.text || '(empty)';
+          setStatus('✅ Transcription complete.', 'done');
+        } else {
+          document.getElementById('output').textContent = JSON.stringify(d, null, 2);
+          setStatus('❌ ' + r.status + ': ' + (d.detail || r.statusText), 'error');
+        }
+      } catch(e) {
+        setStatus('❌ ' + e.message, 'error');
+      }
+    };
+    recorder.stop();
+  }
+</script>
+</body>
+</html>

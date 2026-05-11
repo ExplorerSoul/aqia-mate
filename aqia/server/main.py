@@ -1,178 +1,177 @@
 import os
 import warnings
-# Suppress FutureWarning from transformers regarding register_pytree_node
-warnings.filterwarnings("ignore", category=FutureWarning, message=".*register_pytree_node.*")
-import uuid
+# load_dotenv MUST run before any other local imports so DATABASE_URL / REDIS_URL
+# are in os.environ when database.py and queue_client.py initialise their engines.
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException, Depends, Header
+load_dotenv()
+
+warnings.filterwarnings("ignore", category=FutureWarning, message=".*register_pytree_node.*")
+
+import uuid
+import datetime
+import httpx
+
+from fastapi import FastAPI, HTTPException, Depends, Header, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, EmailStr
 from sqlalchemy.orm import Session
+from sqlalchemy import func
 from typing import Optional, List
 from jose import JWTError, jwt
-import datetime
 
 from database import engine, get_db
 import models
 from auth_utils import get_password_hash, verify_password, create_access_token
+from queue_client import enqueue_or_run
+from jobs import save_interview_job
 
-# Monkey patch for coqui-tts compatibility with newer transformers
-# Only apply if torch is available (Coqui TTS dependency)
+# ── Optional: Coqui TTS torch monkey-patch ───────────────────────────────────
 try:
     import transformers.pytorch_utils as pu
     if not hasattr(pu, "isin_mps_friendly"):
-        def isin_mps_friendly():
-            return False
-        pu.isin_mps_friendly = isin_mps_friendly
+        pu.isin_mps_friendly = lambda: False
 except (ImportError, ModuleNotFoundError):
     print("⚠️  torch/transformers not available — Coqui TTS will be disabled.")
 
-# Load env vars
-load_dotenv()
-
-# 1. Set Coqui TOS Agreement
+# ── eSpeak path (Windows only) ────────────────────────────────────────────────
 os.environ["COQUI_TOS_AGREED"] = "1"
+_espeak = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
+if os.path.exists(_espeak):
+    os.environ["PHONEMIZER_ESPEAK_PATH"] = _espeak
+    _espeak_lib = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
+    if os.path.exists(_espeak_lib):
+        os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = _espeak_lib
 
-# 2. Fix eSpeak Path (if not in system PATH)
-espeak_path = r"C:\Program Files\eSpeak NG\espeak-ng.exe"
-if os.path.exists(espeak_path):
-    print(f"ℹ️  Found eSpeak at default location: {espeak_path}")
-    os.environ["PHONEMIZER_ESPEAK_PATH"] = espeak_path
-    
-    # Also try to set the library path if possible, though phonemizer usually needs the executable
-    # Some versions of phonemizer/coqui might look for the dll
-    espeak_lib = r"C:\Program Files\eSpeak NG\libespeak-ng.dll"
-    if os.path.exists(espeak_lib):
-         os.environ["PHONEMIZER_ESPEAK_LIBRARY"] = espeak_lib
-
-# Force phonemizer to use the espeak backend
 try:
     from phonemizer.backend import EspeakBackend
-    if 'espeak_lib' in locals():
-        EspeakBackend.set_library(espeak_lib)
-        print("✅ EspeakBackend library set successfully.")
-    else:
-        print("ℹ️  EspeakBackend using default system library (Linux/Mac).")
+    EspeakBackend.set_library(_espeak_lib) if '_espeak_lib' in dir() else None
 except Exception as e:
-    print(f"⚠️  Failed to set EspeakBackend library (Non-critical if using system default): {e}")
+    print(f"⚠️  EspeakBackend: {e}")
 
-# Initialize Database tables
-models.Base.metadata.create_all(bind=engine)
+# ── Database migrations ───────────────────────────────────────────────────────
+try:
+    from alembic.config import Config as AlembicConfig
+    from alembic import command as alembic_command
+    _cfg = AlembicConfig(os.path.join(os.path.dirname(__file__), "alembic.ini"))
+    _cfg.set_main_option("script_location",
+                         os.path.join(os.path.dirname(__file__), "migrations"))
+    alembic_command.upgrade(_cfg, "head")
+    print("✅ Database migrations applied (Alembic)")
+except Exception as _e:
+    print(f"⚠️  Alembic migration failed ({_e}), falling back to create_all")
+    models.Base.metadata.create_all(bind=engine)
 
-# We'll import each service inside its initialization try/except below.
-app = FastAPI()
+# ── FastAPI app ───────────────────────────────────────────────────────────────
+app = FastAPI(
+    title="AQIA API",
+    description="AI Qualified Interview Assistant — backend API",
+    version="1.0.0",
+    docs_url="/api/docs",
+    redoc_url="/api/redoc",
+    openapi_url="/api/openapi.json",
+)
 
-# CORS
+# ── CORS ──────────────────────────────────────────────────────────────────────
+_allowed_origins = [
+    o.strip()
+    for o in os.getenv(
+        "ALLOWED_ORIGINS",
+        "http://localhost:5173,http://127.0.0.1:5173,http://localhost:5174,http://127.0.0.1:5174"
+    ).split(",")
+    if o.strip() and o.strip() != "null"   # strip any accidental null entries
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all for local dev
+    allow_origins=_allowed_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
-# We need the service classes imported (assuming they are in tts_service.py and google_tts_service.py which we import implicitly or explicitly)
-# Wait, previous main.py had explicit imports?
-# The view_file previously didn't show them! 
-# But the code uses `GoogleTTSService` and `TTSService`.
-# They must be imported.
-# Let me check the imports in the PREVIOUS versions shown in context.
-# Ah, I missed them in my reconstruction?
-# Let's check the `read_url_content` output again.
-# It didn't show explicit `from server.tts_service import TTSService`.
-# Let me check `server/main.py` imports carefully from previous context log.
-# Ah, I see `from server.tts_service import TTSService` in my memory/logs?
-# Actually, the implementation plan mentioned checking `server/main.py`.
-# Let's assume standard imports.
+# ── TTS services ──────────────────────────────────────────────────────────────
 from google_tts_service import GoogleTTSService
 
-# Try to import Coqui TTS (requires torch — optional)
 try:
     from tts_service import TTSService
     _coqui_available = True
 except (ImportError, ModuleNotFoundError) as e:
-    print(f"⚠️  Coqui TTS unavailable (missing dependency: {e}). Local TTS disabled.")
+    print(f"⚠️  Coqui TTS unavailable ({e}). Local TTS disabled.")
     TTSService = None
     _coqui_available = False
 
-# Initialize Google TTS Service
 try:
-    # Use ENV variable for security
-    creds_path = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "server/google-credentials.json")
-    
-    # Handle the double extension issue if it persists in the filename on disk
-    if not os.path.exists(creds_path) and os.path.exists("google-credentials.json"):
-         creds_path = "google-credentials.json"
-        
-    google_tts_service = GoogleTTSService(credentials_path=creds_path)
-    print(f"✅ Google TTS Service Initialized using credentials at: {creds_path}")
+    _creds = os.getenv("GOOGLE_APPLICATION_CREDENTIALS", "google-credentials.json")
+    if not os.path.exists(_creds):
+        _creds = "google-credentials.json"
+    google_tts_service = GoogleTTSService(credentials_path=_creds)
+    print(f"✅ Google TTS initialised ({_creds})")
 except Exception as e:
-    print(f"❌ Failed to init Google TTS: {e}")
+    print(f"❌ Google TTS failed: {e}")
     google_tts_service = None
 
-# Initialize Coqui TTS Service
 try:
-    if _coqui_available:
-        tts_service = TTSService()
-        print("✅ Coqui TTS Service Globally Initialized")
-    else:
-        tts_service = None
+    tts_service = TTSService() if _coqui_available else None
+    if tts_service:
+        print("✅ Coqui TTS initialised")
 except Exception as e:
-    print(f"❌ Failed to init Coqui TTS: {e}")
+    print(f"❌ Coqui TTS failed: {e}")
     tts_service = None
 
-# Ensure audio directory exists
 AUDIO_DIR = "generated_audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
-class TTSRequest(BaseModel):
-    text: str
-    voice: str = "en-US-Neural2-F" # Default Google Voice
+# ── Groq proxy config ─────────────────────────────────────────────────────────
+GROQ_API_KEY       = os.getenv("GROQ_API_KEY", "")
+GROQ_CHAT_URL      = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_TRANSCRIBE_URL= "https://api.groq.com/openai/v1/audio/transcriptions"
 
-# Health check (API)
-@app.get("/api/health")
+# ── JWT config ────────────────────────────────────────────────────────────────
+SECRET_KEY = os.getenv("SECRET_KEY")
+ALGORITHM  = "HS256"
+
+# =============================================================================
+# AUTH DEPENDENCY  (defined before any route that uses it)
+# =============================================================================
+
+def get_current_user(
+    authorization: Optional[str] = Header(None),
+    db: Session = Depends(get_db),
+) -> models.User:
+    """Validate Bearer JWT and return the User row."""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    token = authorization.split(" ", 1)[1]
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id: str = payload.get("id")
+        if not user_id:
+            raise HTTPException(status_code=401, detail="Invalid token payload")
+    except JWTError:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+    user = db.get(models.User, user_id)
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    return user
+
+# =============================================================================
+# HEALTH
+# =============================================================================
+
+@app.get("/api/health", tags=["Health"])
 def health_check():
+    """Returns service status. Use this to verify the backend is reachable."""
     return {"status": "ok", "service": "AQIA Backend"}
 
-# Also keep /health
-@app.get("/health")
-def health_check_alias():
-    return {"status": "ok", "service": "AQIA Backend"}
+@app.get("/health", include_in_schema=False)
+def health_alias():
+    return {"status": "ok"}
 
-@app.post("/tts")
-async def generate_speech(request: TTSRequest):
-    if not tts_service:
-        raise HTTPException(status_code=503, detail="TTS Service not available")
-    
-    try:
-        filename = f"{uuid.uuid4()}.wav"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        
-        tts_service.generate_audio(request.text, filepath)
-        
-        return FileResponse(filepath, media_type="audio/wav", filename=filename)
-    except Exception as e:
-        print(f"TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/google-tts")
-async def generate_google_speech(request: TTSRequest):
-    if not google_tts_service:
-        raise HTTPException(status_code=503, detail="Google TTS Service not available (Check credentials)")
-    
-    try:
-        filename = f"google_{uuid.uuid4()}.mp3"
-        filepath = os.path.join(AUDIO_DIR, filename)
-        
-        google_tts_service.generate_audio(request.text, filepath, request.voice)
-        
-        return FileResponse(filepath, media_type="audio/mpeg", filename=filename)
-    except Exception as e:
-        print(f"Google TTS Error: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-# --- Authentication Endpoints ---
+# =============================================================================
+# AUTH
+# =============================================================================
 
 class UserCreate(BaseModel):
     email: EmailStr
@@ -183,58 +182,125 @@ class UserLogin(BaseModel):
     email: EmailStr
     password: str
 
-@app.post("/api/register")
+@app.post("/api/register", tags=["Auth"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    db_user = db.query(models.User).filter(models.User.email == user.email).first()
-    if db_user:
+    """Register a new user account. Returns a JWT token on success."""
+    if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
-    
-    hashed_password = get_password_hash(user.password)
     new_user = models.User(
         email=user.email,
-        password_hash=hashed_password,
-        name=user.name
+        password_hash=get_password_hash(user.password),
+        name=user.name,
     )
     db.add(new_user)
     db.commit()
     db.refresh(new_user)
-    
-    # Return a token immediately upon registration for convenience
-    access_token = create_access_token(data={"sub": new_user.email, "id": new_user.id})
-    return {"access_token": access_token, "token_type": "bearer"}
+    token = create_access_token(data={"sub": new_user.email, "id": new_user.id})
+    return {"access_token": token, "token_type": "bearer"}
 
-@app.post("/api/login")
+@app.post("/api/login", tags=["Auth"])
 def login(user: UserLogin, db: Session = Depends(get_db)):
+    """Login with email + password. Returns a JWT token."""
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not verify_password(user.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
-    
-    access_token = create_access_token(data={"sub": db_user.email, "id": db_user.id})
-    return {"access_token": access_token, "token_type": "bearer"}
+    token = create_access_token(data={"sub": db_user.email, "id": db_user.id})
+    return {"access_token": token, "token_type": "bearer"}
 
-# --- Auth Dependency ---
+# =============================================================================
+# GROQ PROXY  (keeps API key server-side)
+# =============================================================================
 
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM = "HS256"
+class ChatRequest(BaseModel):
+    messages: List[dict]
+    model: str = "llama-3.3-70b-versatile"
+    temperature: float = 0.6
+    max_tokens: int = 1024
+    response_format: Optional[dict] = None
 
-def get_current_user(authorization: Optional[str] = Header(None), db: Session = Depends(get_db)):
-    """Decode the Bearer JWT token and return the DB user."""
-    if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(status_code=401, detail="Not authenticated")
-    token = authorization.split(" ", 1)[1]
+@app.post("/api/chat", tags=["AI Proxy"])
+async def proxy_chat(
+    request: ChatRequest,
+    _: models.User = Depends(get_current_user),
+):
+    """
+    Proxy chat completions to Groq (Llama-3.3-70b).
+    The Groq API key never leaves the server.
+    Requires: Bearer token.
+    """
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=503, detail="Groq API key not configured on server.")
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            GROQ_CHAT_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}", "Content-Type": "application/json"},
+            json=request.model_dump(exclude_none=True),
+        )
+    if not resp.is_success:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+@app.post("/api/transcribe", tags=["AI Proxy"])
+async def proxy_transcribe(
+    file: UploadFile = File(...),
+    model: str = Form(default="whisper-large-v3"),
+    _: models.User = Depends(get_current_user),
+):
+    """
+    Proxy Whisper audio transcription to Groq.
+    The Groq API key never leaves the server.
+    Requires: Bearer token + multipart audio file.
+    """
+    if not GROQ_API_KEY:
+        raise HTTPException(status_code=503, detail="Groq API key not configured on server.")
+    audio_bytes = await file.read()
+    async with httpx.AsyncClient(timeout=60) as client:
+        resp = await client.post(
+            GROQ_TRANSCRIBE_URL,
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            files={"file": (file.filename or "recording.wav", audio_bytes,
+                            file.content_type or "audio/wav")},
+            data={"model": model},
+        )
+    if not resp.is_success:
+        raise HTTPException(status_code=resp.status_code, detail=resp.text)
+    return resp.json()
+
+# =============================================================================
+# TTS
+# =============================================================================
+
+class TTSRequest(BaseModel):
+    text: str
+    voice: str = "en-US-Neural2-F"
+
+@app.post("/google-tts", tags=["TTS"])
+async def google_tts(request: TTSRequest):
+    """Generate speech via Google Cloud TTS (Neural2). Returns MP3 audio."""
+    if not google_tts_service:
+        raise HTTPException(status_code=503, detail="Google TTS not available")
     try:
-        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        user_id: str = payload.get("id")
-        if not user_id:
-            raise HTTPException(status_code=401, detail="Invalid token")
-    except JWTError:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
-    user = db.query(models.User).filter(models.User.id == user_id).first()
-    if not user:
-        raise HTTPException(status_code=401, detail="User not found")
-    return user
+        path = os.path.join(AUDIO_DIR, f"google_{uuid.uuid4()}.mp3")
+        google_tts_service.generate_audio(request.text, path, request.voice)
+        return FileResponse(path, media_type="audio/mpeg")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
-# --- Interview Endpoints ---
+@app.post("/tts", tags=["TTS"])
+async def coqui_tts(request: TTSRequest):
+    """Generate speech via local Coqui TTS. Returns WAV audio. Requires torch."""
+    if not tts_service:
+        raise HTTPException(status_code=503, detail="Coqui TTS not available (torch not installed)")
+    try:
+        path = os.path.join(AUDIO_DIR, f"{uuid.uuid4()}.wav")
+        tts_service.generate_audio(request.text, path)
+        return FileResponse(path, media_type="audio/wav")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# =============================================================================
+# INTERVIEWS
+# =============================================================================
 
 class QuestionIn(BaseModel):
     question_asked: str
@@ -246,53 +312,58 @@ class InterviewCreate(BaseModel):
     job_category: str
     overall_score: Optional[int] = None
     questions: List[QuestionIn] = []
-    analytics_scores: Optional[dict] = None  # e.g. {"Communication": 80, "Technical": 75}
+    analytics_scores: Optional[dict] = None
 
-@app.post("/api/interviews")
+@app.post("/api/interviews", tags=["Interviews"])
 def save_interview(
     data: InterviewCreate,
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Save a completed interview session and its Q&A to the database."""
-    session = models.InterviewSession(
+    """
+    Save a completed interview session.
+    - Enforces 1 interview per calendar day per user (429 if exceeded).
+    - Enqueues DB write via Redis/RQ; falls back to sync if Redis is not set.
+    - Returns immediately — poll /api/jobs/{job_id} to confirm save.
+    """
+    today_start = datetime.datetime.utcnow().replace(
+        hour=0, minute=0, second=0, microsecond=0
+    )
+    today_count = (
+        db.query(func.count(models.InterviewSession.id))
+        .filter(
+            models.InterviewSession.user_id == current_user.id,
+            models.InterviewSession.completed_at >= today_start,
+            models.InterviewSession.overall_score.isnot(None),
+        )
+        .scalar()
+    )
+    if today_count >= 1:
+        raise HTTPException(
+            status_code=429,
+            detail="Daily interview limit reached. You can take one interview per day.",
+        )
+
+    job_id, result = enqueue_or_run(
+        save_interview_job,
         user_id=current_user.id,
         job_category=data.job_category,
         overall_score=data.overall_score,
-        completed_at=datetime.datetime.utcnow()
+        questions=[q.model_dump() for q in data.questions],
+        analytics_scores=data.analytics_scores,
     )
-    db.add(session)
-    db.flush()  # get session.id before adding children
 
-    for q in data.questions:
-        question = models.QuestionHistory(
-            session_id=session.id,
-            question_asked=q.question_asked,
-            user_answer=q.user_answer,
-            ai_feedback=q.ai_feedback,
-            score=q.score
-        )
-        db.add(question)
+    if job_id:
+        return {"status": "queued", "job_id": job_id,
+                "message": "Interview is being saved in the background."}
+    return {"status": "saved", "job_id": None,
+            "session_id": result.get("session_id"),
+            "message": "Interview saved successfully."}
 
-    # Save per-category analytics scores
-    if data.analytics_scores:
-        for category, score in data.analytics_scores.items():
-            if score is not None:
-                analytics = models.AnalyticsScore(
-                    session_id=session.id,
-                    category=category,
-                    score=int(score)
-                )
-                db.add(analytics)
-
-    db.commit()
-    db.refresh(session)
-    return {"id": session.id, "message": "Interview saved successfully"}
-
-@app.get("/api/interviews")
-def get_interviews(
+@app.get("/api/interviews", tags=["Interviews"])
+def list_interviews(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
     """Return all interview sessions for the current user, newest first."""
     sessions = (
@@ -312,89 +383,133 @@ def get_interviews(
         for s in sessions
     ]
 
-@app.get("/api/dashboard")
+@app.get("/api/jobs/{job_id}", tags=["Interviews"])
+def get_job_status(job_id: str, _: models.User = Depends(get_current_user)):
+    """Poll the status of a background interview-save job."""
+    from queue_client import get_queue
+    if get_queue() is None:
+        raise HTTPException(status_code=404, detail="Queue not configured")
+    try:
+        from rq.job import Job
+        from redis import Redis
+        conn = Redis.from_url(os.getenv("REDIS_URL", ""))
+        job = Job.fetch(job_id, connection=conn)
+        return {
+            "job_id": job_id,
+            "status": job.get_status().value,
+            "result": job.result if job.is_finished else None,
+            "error":  str(job.exc_info) if job.is_failed else None,
+        }
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=f"Job not found: {e}")
+
+# =============================================================================
+# DASHBOARD
+# =============================================================================
+
+@app.get("/api/dashboard", tags=["Dashboard"])
 def get_dashboard(
     db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user)
+    current_user: models.User = Depends(get_current_user),
 ):
-    """Return aggregated stats for the Dashboard."""
-    sessions = (
-        db.query(models.InterviewSession)
-        .filter(
-            models.InterviewSession.user_id == current_user.id,
-            models.InterviewSession.overall_score.isnot(None)
+    """
+    Return aggregated stats for the Dashboard.
+    Uses SQL aggregates — no Python-side loops.
+    """
+    uid = current_user.id
+
+    agg = (
+        db.query(
+            func.count(models.InterviewSession.id).label("total"),
+            func.max(models.InterviewSession.overall_score).label("highest"),
+            func.avg(models.InterviewSession.overall_score).label("avg"),
         )
-        .order_by(models.InterviewSession.started_at.asc())
+        .filter(
+            models.InterviewSession.user_id == uid,
+            models.InterviewSession.overall_score.isnot(None),
+        )
+        .one()
+    )
+
+    recent_rows = (
+        db.query(
+            models.InterviewSession.id,
+            models.InterviewSession.job_category,
+            models.InterviewSession.overall_score,
+            models.InterviewSession.started_at,
+        )
+        .filter(
+            models.InterviewSession.user_id == uid,
+            models.InterviewSession.overall_score.isnot(None),
+        )
+        .order_by(models.InterviewSession.started_at.desc())
+        .limit(6)
         .all()
     )
 
-    total_interviews = len(sessions)
-    highest_score = max((s.overall_score for s in sessions), default=0)
-    scores = [s.overall_score for s in sessions if s.overall_score is not None]
-    avg_score = round(sum(scores) / len(scores)) if scores else 0
-
-    # Recent interviews (last 6, newest first) for the history list
-    recent = sorted(sessions, key=lambda s: s.started_at, reverse=True)[:6]
-    recent_interviews = [
-        {
-            "id": s.id,
-            "role": s.job_category,
-            "date": s.started_at.strftime("%b %d, %Y") if s.started_at else "",
-            "score": s.overall_score,
-        }
-        for s in recent
-    ]
-
-    # Progress chart data — one point per interview in chronological order
-    progress_data = [
-        {
-            "date": s.started_at.strftime("%b %d") if s.started_at else "",
-            "score": s.overall_score,
-        }
-        for s in sessions
-    ]
+    chart_rows = (
+        db.query(
+            models.InterviewSession.started_at,
+            models.InterviewSession.overall_score,
+        )
+        .filter(
+            models.InterviewSession.user_id == uid,
+            models.InterviewSession.overall_score.isnot(None),
+        )
+        .order_by(models.InterviewSession.started_at.asc())
+        .limit(30)
+        .all()
+    )
 
     return {
-        "total_interviews": total_interviews,
-        "highest_score": highest_score,
-        "avg_score": avg_score,
-        "recent_interviews": recent_interviews,
-        "progress_data": progress_data,
+        "total_interviews":  agg.total or 0,
+        "highest_score":     agg.highest or 0,
+        "avg_score":         round(agg.avg) if agg.avg else 0,
+        "recent_interviews": [
+            {
+                "id":    r.id,
+                "role":  r.job_category,
+                "date":  r.started_at.strftime("%b %d, %Y") if r.started_at else "",
+                "score": r.overall_score,
+            }
+            for r in recent_rows
+        ],
+        "progress_data": [
+            {
+                "date":  r.started_at.strftime("%b %d") if r.started_at else "",
+                "score": r.overall_score,
+            }
+            for r in chart_rows
+        ],
     }
 
-# --- Static File Serving (Place at the end) ---
-from fastapi.staticfiles import StaticFiles
+# =============================================================================
+# STATIC FILE SERVING  (deployed mode — FastAPI serves built React)
+# =============================================================================
 
-# Check if static directory exists (deployed mode)
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
 if os.path.exists(STATIC_DIR):
     app.mount("/assets", StaticFiles(directory=os.path.join(STATIC_DIR, "assets")), name="assets")
 
-    # Serve Root (Index)
-    @app.get("/")
+    @app.get("/", include_in_schema=False)
     async def serve_root():
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 
-    # Catch-all for SPA (must be after API routes)
-    # Note: We use a path parameter to catch everything
-    @app.get("/{full_path:path}")
+    @app.get("/{full_path:path}", include_in_schema=False)
     async def serve_spa(full_path: str):
-        # Allow API routes (defined above) to take precedence automatically.
-        
-        # Check if file exists in static root (e.g. favicon.ico)
         file_path = os.path.join(STATIC_DIR, full_path)
-        if os.path.exists(file_path) and os.path.isfile(file_path):
-             return FileResponse(file_path)
-        
-        # Otherwise serve index.html for client-side routing
+        if os.path.isfile(file_path):
+            return FileResponse(file_path)
         return FileResponse(os.path.join(STATIC_DIR, "index.html"))
 else:
-    # If no static files, route root to health check
-    @app.get("/")
-    def read_root_fallback():
-        return {"status": "ok", "service": "AQIA Backend (No Static Served)"}
+    @app.get("/", include_in_schema=False)
+    def root_fallback():
+        return {"status": "ok", "service": "AQIA Backend", "docs": "/api/docs"}
+
+# =============================================================================
+# ENTRY POINT
+# =============================================================================
 
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run(app, host="0.0.0.0", port=port)
+    uvicorn.run(app, host="0.0.0.0", port=int(os.getenv("PORT", 8000)))

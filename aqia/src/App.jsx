@@ -12,23 +12,21 @@ import { AuthProvider, useAuth } from "./contexts/AuthContext";
 const PrivateRoute = ({ children }) => {
   const { user, loading } = useAuth();
   
-  if (loading) return <div>Loading...</div>; // Could be a fancy spinner
+  if (loading) return <div className="loading">Loading...</div>;
   
   return user ? children : <Navigate to="/login" replace />;
 };
 
 function App() {
   const [appData, setAppData] = useState(() => {
-    const apiKey = sessionStorage.getItem("user_api_key");
     const domain = sessionStorage.getItem("user_domain");
     const resumeText = sessionStorage.getItem("user_resume");
-    return apiKey && domain && resumeText ? { apiKey, domain, resumeText } : {};
+    return domain && resumeText ? { domain, resumeText } : {};
   });
 
   const [gptService, setGptService] = useState(null);
 
   useEffect(() => {
-    if (appData.apiKey) sessionStorage.setItem("user_api_key", appData.apiKey);
     if (appData.domain) sessionStorage.setItem("user_domain", appData.domain);
     if (appData.resumeText) sessionStorage.setItem("user_resume", appData.resumeText);
   }, [appData]);
@@ -58,7 +56,7 @@ function App() {
     {
       path: "/interview",
       element:
-        appData.apiKey && appData.domain && appData.resumeText ? (
+        appData.domain && appData.resumeText ? (
           <PrivateRoute>
              <InterviewFlow appData={appData} setGptService={setGptService} />
           </PrivateRoute>
@@ -80,7 +78,7 @@ function App() {
     }
   ]);
 
-  if (loading) return <div>Initializing App...</div>;
+  if (loading) return <div className="loading">Initializing...</div>;
 
   return <RouterProvider router={router} />;
 }

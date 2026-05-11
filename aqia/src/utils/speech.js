@@ -5,8 +5,7 @@ class SpeechService {
     this.isRecording = false;
     this.isPlaying = false;
     this.audioElement = new Audio();
-    this.apiKey = sessionStorage.getItem('user_api_key');
-    this._stopped = false; // Global abort flag
+    this._stopped = false;
 
     // AbortController for in-flight TTS fetch
     this._fetchController = null;
@@ -88,7 +87,7 @@ class SpeechService {
     // Each fetch gets its own AbortController so we can cancel it
     this._fetchController = new AbortController();
     const timeoutId = setTimeout(() => this._fetchController.abort(), timeoutMs);
-    const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const API_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
 
     try {
       const response = await fetch(`${API_URL}${endpoint}`, {
@@ -122,38 +121,50 @@ class SpeechService {
     if (this._stopped) return Promise.resolve();
     return new Promise((resolve) => {
       this.currentUtterance = new SpeechSynthesisUtterance(text);
-      this.currentUtterance.onend = () => {
-        this.currentUtterance = null;
-        resolve();
-      };
+
+      this.currentUtterance.onend = () => { this.currentUtterance = null; resolve(); };
       this.currentUtterance.onerror = (e) => {
-        if (e.error === 'interrupted' || e.error === 'canceled') {
-           console.log("Browser TTS interrupted (intentional or overlap)");
-        } else {
-           console.error("Browser TTS error", e);
+        if (e.error !== 'interrupted' && e.error !== 'canceled') {
+          console.error("Browser TTS error", e);
         }
         this.currentUtterance = null;
         resolve();
       };
 
-      const setVoiceAndSpeak = () => {
+      const applyVoiceAndSpeak = () => {
         const voices = window.speechSynthesis.getVoices();
-        const preferred = voices.find(v =>
-          v.name.includes("Microsoft Zira") ||
-          v.name.includes("Google US English") ||
-          v.lang === 'en-US'
+
+        // Priority order — most natural first
+        const preferred = (
+          voices.find(v => v.name === 'Google UK English Female') ||
+          voices.find(v => v.name === 'Google US English') ||
+          voices.find(v => v.name.includes('Samantha')) ||   // macOS natural voice
+          voices.find(v => v.name.includes('Karen')) ||       // macOS AU
+          voices.find(v => v.name.includes('Moira')) ||       // macOS IE
+          voices.find(v => v.name.includes('Microsoft Aria')) ||
+          voices.find(v => v.name.includes('Microsoft Jenny')) ||
+          voices.find(v => v.name.includes('Microsoft Zira')) ||
+          voices.find(v => v.lang === 'en-US' && v.localService) ||
+          voices.find(v => v.lang === 'en-US') ||
+          voices.find(v => v.lang.startsWith('en'))
         );
+
         if (preferred) this.currentUtterance.voice = preferred;
-        this.currentUtterance.rate = 1.1;
+
+        // Natural pacing — slightly slower than default, lower pitch
+        this.currentUtterance.rate  = 0.92;   // slightly slower = more deliberate
+        this.currentUtterance.pitch = 0.95;   // slightly lower = less robotic
+        this.currentUtterance.volume = 1.0;
+
         window.speechSynthesis.speak(this.currentUtterance);
       };
 
       if (window.speechSynthesis.getVoices().length > 0) {
-        setVoiceAndSpeak();
+        applyVoiceAndSpeak();
       } else {
         window.speechSynthesis.onvoiceschanged = () => {
-           setVoiceAndSpeak();
-           window.speechSynthesis.onvoiceschanged = null;
+          applyVoiceAndSpeak();
+          window.speechSynthesis.onvoiceschanged = null;
         };
       }
     });
@@ -278,31 +289,33 @@ class SpeechService {
   }
 
   async _transcribeAudio(audioBlob) {
-    if (this._stopped) return ''; // Don't transcribe if we've already exited
-    if (!this.apiKey) this.apiKey = sessionStorage.getItem('user_api_key');
+    if (this._stopped) return '';
     if (audioBlob.size < 1000) return '';
+
+    const token = localStorage.getItem('token');
+    const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
 
     const formData = new FormData();
     formData.append('file', audioBlob, 'recording.wav');
     formData.append('model', 'whisper-large-v3');
 
-    // Retry Logic for Whisper
+    // Retry logic
     for (let i = 0; i < 3; i++) {
-        if (this._stopped) return '';
-        try {
-            const res = await fetch('https://api.groq.com/openai/v1/audio/transcriptions', {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${this.apiKey}` },
-                body: formData
-            });
-            if (res.ok) {
-                const data = await res.json();
-                return data.text;
-            }
-        } catch (e) {
-            console.warn("Whisper attempt failed", e);
-            await new Promise(r => setTimeout(r, 1000));
+      if (this._stopped) return '';
+      try {
+        const res = await fetch(`${API_BASE}/api/transcribe`, {
+          method: 'POST',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {},
+          body: formData,
+        });
+        if (res.ok) {
+          const data = await res.json();
+          return data.text || '';
         }
+      } catch (e) {
+        console.warn("Transcribe attempt failed", e);
+        await new Promise(r => setTimeout(r, 1000));
+      }
     }
     return '';
   }

@@ -229,21 +229,8 @@ const FinalReview = () => {
       {/* Return to Dashboard */}
       <div style={{ textAlign: 'center', marginTop: '2rem', paddingBottom: '3rem' }}>
         <button
-          onClick={() => navigate('/dashboard')}
-          style={{
-            padding: '0.75rem 2.5rem',
-            background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-            color: '#fff',
-            border: 'none',
-            borderRadius: '10px',
-            fontSize: '1rem',
-            fontWeight: '600',
-            cursor: 'pointer',
-            boxShadow: '0 4px 15px rgba(102,126,234,0.4)',
-            transition: 'opacity 0.2s',
-          }}
-          onMouseOver={e => e.currentTarget.style.opacity = '0.85'}
-          onMouseOut={e => e.currentTarget.style.opacity = '1'}
+          className="fr-dashboard-btn"
+          onClick={() => navigate('/')}
         >
           🏠 Go to Dashboard
         </button>

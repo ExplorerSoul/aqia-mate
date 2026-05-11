@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>AQIA — Browser TTS Test</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Inter', 'Segoe UI', -apple-system, sans-serif;
+      background: #f8fafc; color: #0f172a;
+      min-height: 100vh; padding: 2rem 1.5rem;
+      display: flex; flex-direction: column; align-items: center;
+    }
+    .page-header { width: 100%; max-width: 600px; margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.02em; }
+    .page-header p  { color: #64748b; font-size: 0.875rem; margin-top: 0.2rem; }
+
+    .card {
+      width: 100%; max-width: 600px; background: #fff;
+      border: 1px solid #e2e8f0; border-radius: 12px;
+      padding: 1.5rem; display: flex; flex-direction: column; gap: 1.25rem;
+    }
+
+    label { font-size: 0.82rem; font-weight: 600; color: #475569; display: block; margin-bottom: 0.3rem; }
+    select, textarea {
+      width: 100%; padding: 0.6rem 0.75rem; border: 1px solid #e2e8f0;
+      border-radius: 8px; font-size: 0.875rem; font-family: inherit; color: #0f172a;
+    }
+    select:focus, textarea:focus { outline: none; border-color: #93c5fd;
+      box-shadow: 0 0 0 3px rgba(37,99,235,.1); }
+    textarea { height: 90px; resize: vertical; }
+
+    .btn-row { display: flex; gap: 0.75rem; }
+    button {
+      padding: 0.6rem 1.4rem; border: none; border-radius: 8px;
+      font-size: 0.875rem; font-weight: 600; cursor: pointer;
+      transition: background 0.15s; font-family: inherit;
+    }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    .btn-speak { background: #2563eb; color: #fff; }
+    .btn-speak:hover { background: #1d4ed8; }
+    .btn-stop  { background: #dc2626; color: #fff; }
+    .btn-stop:hover  { background: #b91c1c; }
+
+    .status {
+      font-size: 0.875rem; padding: 0.5rem 0.75rem; border-radius: 8px;
+      background: #f8fafc; color: #475569; min-height: 2.25rem;
+      display: flex; align-items: center;
+    }
+    .speaking { background: #eff6ff; color: #1d4ed8; }
+    .done     { background: #f0fdf4; color: #166534; }
+    .error    { background: #fef2f2; color: #991b1b; }
+
+    .note { font-size: 0.78rem; color: #94a3b8; }
+  </style>
+</head>
+<body>
+
+<div class="page-header">
+  <h1>🔈 Browser TTS Test</h1>
+  <p>Tests <code>window.speechSynthesis</code> directly — no backend needed. Verifies browser voice output works.</p>
+</div>
+
+<div class="card">
+  <div>
+    <label>Voice</label>
+    <select id="voiceSelect"><option>Loading voices…</option></select>
+  </div>
+  <div>
+    <label>Text to Speak</label>
+    <textarea id="textInput">Hello! This is a test of the browser text-to-speech system used by AQIA as a fallback.</textarea>
+  </div>
+  <div class="btn-row">
+    <button class="btn-speak" id="speakBtn" onclick="speak()">▶ Speak</button>
+    <button class="btn-stop"  id="stopBtn"  onclick="stopSpeech()">■ Stop</button>
+  </div>
+  <div class="status" id="status">Ready.</div>
+  <p class="note">ℹ️ AQIA uses this as a fallback when Google TTS and Coqui TTS are both unavailable.</p>
+</div>
+
+<script>
+  let voices = [];
+  const synth = window.speechSynthesis;
+
+  function populateVoices() {
+    voices = synth.getVoices();
+    const sel = document.getElementById('voiceSelect');
+    sel.innerHTML = '';
+    voices
+      .sort((a, b) => {
+        const ag = a.name.toLowerCase().includes('google');
+        const bg = b.name.toLowerCase().includes('google');
+        return ag === bg ? 0 : ag ? -1 : 1;
+      })
+      .forEach(v => {
+        const opt = document.createElement('option');
+        opt.textContent = v.name + ' (' + v.lang + ')';
+        opt.dataset.name = v.name;
+        if (v.name.includes('Google') && v.lang === 'en-US') opt.selected = true;
+        sel.appendChild(opt);
+      });
+    if (!voices.length) sel.innerHTML = '<option>No voices found — check browser permissions.</option>';
+  }
+
+  populateVoices();
+  if (speechSynthesis.onvoiceschanged !== undefined) speechSynthesis.onvoiceschanged = populateVoices;
+
+  function setStatus(msg, cls) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status ' + (cls || '');
+  }
+
+  function speak() {
+    if (synth.speaking) return;
+    const text = document.getElementById('textInput').value;
+    if (!text) return;
+    const utt = new SpeechSynthesisUtterance(text);
+    const selName = document.getElementById('voiceSelect').selectedOptions[0]?.dataset.name;
+    const voice = voices.find(v => v.name === selName);
+    if (voice) utt.voice = voice;
+    utt.rate = 1.1;
+    utt.onstart = () => {
+      setStatus('Speaking with: ' + (voice?.name || 'default') + '…', 'speaking');
+      document.getElementById('speakBtn').disabled = true;
+    };
+    utt.onend = () => {
+      setStatus('Done.', 'done');
+      document.getElementById('speakBtn').disabled = false;
+    };
+    utt.onerror = (e) => {
+      if (e.error === 'interrupted' || e.error === 'canceled') {
+        setStatus('Stopped.', '');
+      } else {
+        setStatus('Error: ' + e.error, 'error');
+      }
+      document.getElementById('speakBtn').disabled = false;
+    };
+    synth.speak(utt);
+  }
+
+  function stopSpeech() {
+    synth.cancel();
+    setStatus('Stopped.', '');
+    document.getElementById('speakBtn').disabled = false;
+  }
+</script>
+</body>
+</html>

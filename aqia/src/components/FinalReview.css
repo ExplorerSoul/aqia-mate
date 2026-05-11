@@ -386,3 +386,22 @@
   font-weight: 700; /* font-bold */
   color: #374151; /* text-gray-700 */
 }
+
+/* Dashboard return button */
+.fr-dashboard-btn {
+  padding: 0.75rem 2.5rem;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.4);
+  transition: opacity 0.2s ease;
+  font-family: inherit;
+}
+
+.fr-dashboard-btn:hover {
+  opacity: 0.85;
+}
