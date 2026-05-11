@@ -199,3 +199,244 @@
 @media (max-width: 400px) {
   .metrics-grid { grid-template-columns: 1fr; }
 }
+
+/* ─── Community Spotlight ──────────────────────────────────────────────────── */
+
+.spotlight-section {
+  margin-bottom: 2rem;
+  user-select: none;
+}
+
+.spotlight-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.spotlight-title-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.spotlight-accent-bar {
+  width: 4px;
+  height: 20px;
+  border-radius: 2px;
+  background: linear-gradient(to bottom, #7C3AED, #3B82F6);
+  flex-shrink: 0;
+}
+
+.spotlight-title {
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+  color: #0f172a;
+}
+
+.spotlight-live {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.spotlight-live-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #22C55E;
+  animation: spotlight-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes spotlight-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.5; transform: scale(0.8); }
+}
+
+.spotlight-live-text {
+  font-size: 0.7rem;
+  font-weight: 700;
+  color: #22C55E;
+  letter-spacing: 0.08em;
+}
+
+/* Track + slides */
+.spotlight-track {
+  overflow: hidden;
+  cursor: grab;
+  border-radius: 14px;
+}
+.spotlight-track:active { cursor: grabbing; }
+
+.spotlight-slides {
+  display: flex;
+  transition: transform 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  /* Each slide is 100% / visible_count wide */
+}
+
+.spotlight-slide {
+  flex: 0 0 calc(100% / 2.2); /* show ~2.2 cards at once on desktop */
+  padding: 0 0.5rem;
+  box-sizing: border-box;
+}
+
+/* Card */
+.spotlight-card {
+  background: #ffffff;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  box-shadow: 0 1px 4px rgba(0,0,0,.06);
+  transition: transform 0.3s, box-shadow 0.3s, border-color 0.3s;
+  position: relative;
+  overflow: hidden;
+}
+
+.spotlight-card::before {
+  content: '';
+  position: absolute;
+  top: 0; right: 0;
+  width: 80px; height: 80px;
+  background: radial-gradient(circle, var(--domain-color, #7C3AED)22 0%, transparent 70%);
+  pointer-events: none;
+}
+
+.spotlight-card--active {
+  border-color: var(--domain-color, #7C3AED);
+  box-shadow: 0 4px 16px rgba(0,0,0,.1), 0 0 0 1px var(--domain-color, #7C3AED)33;
+  transform: translateY(-2px);
+}
+
+/* Avatar */
+.spotlight-avatar {
+  width: 52px;
+  height: 52px;
+  border-radius: 12px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.spotlight-avatar-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.spotlight-initials {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+/* Info */
+.spotlight-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.spotlight-name {
+  margin: 0 0 0.2rem;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotlight-college {
+  margin: 0 0 0.5rem;
+  font-size: 0.75rem;
+  color: #64748b;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spotlight-domain {
+  display: inline-block;
+  font-size: 0.7rem;
+  font-weight: 600;
+  padding: 0.2rem 0.6rem;
+  border-radius: 20px;
+  border: 1px solid;
+  white-space: nowrap;
+}
+
+/* Score ring */
+.spotlight-score-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  flex-shrink: 0;
+}
+
+.spotlight-score-ring {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  border: 2px solid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.spotlight-score-value {
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.spotlight-score-pct {
+  font-size: 0.65rem;
+  font-weight: 600;
+}
+
+.spotlight-score-label {
+  margin: 0;
+  font-size: 0.65rem;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* Dots */
+.spotlight-dots {
+  display: flex;
+  justify-content: center;
+  gap: 0.4rem;
+  margin-top: 0.875rem;
+}
+
+.spotlight-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 3px;
+  background: #e2e8f0;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  transition: width 0.3s, background 0.3s;
+}
+
+.spotlight-dot--active {
+  width: 20px;
+  background: #7C3AED;
+}
+
+/* Responsive */
+@media (max-width: 900px) {
+  .spotlight-slide { flex: 0 0 calc(100% / 1.15); }
+}
+@media (max-width: 600px) {
+  .spotlight-slide { flex: 0 0 100%; }
+  .spotlight-card { padding: 0.875rem; }
+}
