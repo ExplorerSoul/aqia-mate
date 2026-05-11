@@ -1,58 +1,30 @@
-databases:
-  # Using Neon.tech for PostgreSQL (free, never expires)
-  # Set DATABASE_URL manually in Render Dashboard env vars
-
 services:
-  # ── Backend API (FastAPI) ──────────────────────────────────────────────────
+  # ── Backend API + Worker (single free web service) ────────────────────────
+  # RQ worker runs as a background process inside the same dyno as uvicorn.
+  # No separate paid Background Worker needed.
   - type: web
     name: aqia-backend
     runtime: python
     plan: free
+    rootDir: aqia
     buildCommand: pip install -r server/requirements.txt
-    startCommand: cd server && uvicorn main:app --host 0.0.0.0 --port $PORT
+    startCommand: bash server/start.sh
     envVars:
       - key: PYTHON_VERSION
         value: "3.11"
       - key: DATABASE_URL
         sync: false          # Set manually: your Neon connection string
       - key: REDIS_URL
-        fromService:
-          name: aqia-redis
-          type: redis
-          property: connectionString
+        sync: false          # Set manually: your Upstash Redis URL
       - key: SECRET_KEY
-        generateValue: true  # Render auto-generates a secure random value
+        generateValue: true
       - key: ALLOWED_ORIGINS
-        value: "https://your-app.vercel.app"   # ← replace with your Vercel URL after deploy
+        sync: false          # Set manually: your Vercel URL e.g. https://aqia.vercel.app
       - key: COQUI_TOS_AGREED
         value: "1"
       - key: GOOGLE_APPLICATION_CREDENTIALS
         value: /etc/secrets/google-credentials.json
       - key: GROQ_API_KEY
-        sync: false          # Set manually in Render Dashboard (secret)
+        sync: false          # Set manually in Render Dashboard
     # Upload google-credentials.json as a Secret File in Render Dashboard
     # Path: /etc/secrets/google-credentials.json
-
-  # ── Background Worker (RQ) ────────────────────────────────────────────────
-  - type: worker
-    name: aqia-worker
-    runtime: python
-    plan: free
-    buildCommand: pip install -r server/requirements.txt
-    startCommand: cd server && python worker.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: "3.11"
-      - key: DATABASE_URL
-        sync: false
-      - key: REDIS_URL
-        fromService:
-          name: aqia-redis
-          type: redis
-          property: connectionString
-
-  # ── Redis (message queue broker) ─────────────────────────────────────────
-  - type: redis
-    name: aqia-redis
-    plan: free
-    maxmemoryPolicy: allkeys-lru
