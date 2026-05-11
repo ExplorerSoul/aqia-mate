@@ -1,22 +1,20 @@
-# AQIA — Project Context & Launch Checklist
+# AQIA — Project Context & Reference
 > *Last updated: May 2026 | Owner: ExplorerSoul/aqia-mate*
+> *Live: https://aqia-mate.vercel.app | API: https://aqia-backend.onrender.com*
 
 ---
 
-## 🧠 What Is AQIA?
+## What Is AQIA?
 
-**AQIA (AI Qualified Interview Assistant)** is a web application that conducts AI-powered mock technical interviews. The user uploads their resume (PDF), picks an interview domain, and AQIA acts as a human interviewer — asking domain-relevant questions, listening to voice answers, and at the end generating a detailed performance report with scores, strengths, weaknesses, and suggested model answers.
-
-**Target users:** Job seekers, students, and professionals who want to practice technical interviews.
+**AQIA (AI Qualified Interview Assistant)** is a web application that conducts AI-powered mock technical interviews. The user uploads their resume (PDF), picks an interview domain, and AQIA acts as a human interviewer — asking domain-relevant questions, listening to voice answers, and generating a detailed performance report with scores, strengths, weaknesses, and suggested model answers.
 
 ---
 
-## 🏗️ Architecture Overview
+## Architecture
 
 ```
 ┌──────────────────────────────────────────────────────┐
-│  FRONTEND  (React 19 + Vite 5)                        │
-│  Served as: Static site or via FastAPI static mount   │
+│  FRONTEND  (React 19 + Vite 5) — Vercel              │
 │                                                       │
 │  /login        → AuthPage.jsx                        │
 │  /             → Dashboard.jsx       (protected)     │
@@ -24,289 +22,154 @@
 │  /interview    → InterviewFlow.jsx   (protected)     │
 │  /review       → FinalReview.jsx     (protected)     │
 └──────────────────────────────────────────────────────┘
-           │  REST API calls (JWT Bearer token)
+           │  REST API (JWT Bearer token)
            ▼
 ┌──────────────────────────────────────────────────────┐
-│  BACKEND  (FastAPI + Python)                          │
-│  server/main.py  — runs on port 8000                 │
+│  BACKEND  (FastAPI + Python) — Render.com            │
 │                                                       │
-│  POST /api/register  → Create user account           │
-│  POST /api/login     → Login, return JWT             │
-│  GET  /api/dashboard → Aggregated stats for user     │
-│  POST /api/interviews → Save a completed interview   │
-│  GET  /api/interviews → List user's interviews       │
-│  POST /google-tts    → Google Cloud TTS (mp3)        │
-│  POST /tts           → Coqui TTS fallback (wav)      │
-│  GET  /api/health    → Health probe                  │
+│  POST /api/register    → Create user account         │
+│  POST /api/login       → Login, return JWT           │
+│  POST /api/chat        → Groq LLM proxy              │
+│  POST /api/transcribe  → Groq Whisper proxy          │
+│  GET  /api/dashboard   → Aggregated stats            │
+│  POST /api/interviews  → Save completed interview    │
+│  GET  /api/interviews  → List user's interviews      │
+│  POST /google-tts      → Google Cloud TTS (mp3)      │
+│  GET  /api/health      → Health probe                │
+│  GET  /api/docs        → OpenAPI docs                │
 └──────────────────────────────────────────────────────┘
-           │  SQLAlchemy ORM
-           ▼
-┌──────────────────────────────────────────────────────┐
-│  DATABASE: PostgreSQL (Neon) — dev falls back to SQLite│
-│  Tables: users, interview_sessions, question_history, │
-│          analytics_scores, progress_tracking          │
-└──────────────────────────────────────────────────────┘
-           │  External APIs
-           ▼
-   Groq API (Llama-3.3-70b) — question generation & review
-   Google Cloud TTS          — voice synthesis (primary)
-   Coqui TTS (local)         — voice synthesis (fallback, requires torch)
-   Browser SpeechRecognition — speech-to-text (STT)
+           │
+           ├── PostgreSQL (Neon) — users, sessions, Q&A
+           ├── Redis (Upstash) — async job queue
+           └── RQ Worker — runs inside same Render dyno
 ```
 
 ---
 
-## 📁 File Map
+## File Map
 
 | Path | Purpose |
 |---|---|
-| `aqia/src/App.jsx` | Router + route protection (`PrivateRoute`) |
-| `aqia/src/contexts/AuthContext.jsx` | JWT auth state (login / register / logout) |
-| `aqia/src/components/AuthPage.jsx` | Login / Sign-up form UI |
-| `aqia/src/components/Dashboard.jsx` | Home screen with stats + history chart |
-| `aqia/src/components/Onboarding.jsx` | Resume upload, domain & question count setup |
-| `aqia/src/components/InterviewFlow.jsx` | The live interview state machine |
-| `aqia/src/components/FinalReview.jsx` | Post-interview detailed report |
-| `aqia/src/utils/AIservice.js` | Groq API wrapper, conversation history |
-| `aqia/src/utils/promptBuilder.js` | System prompt generator, domain list |
-| `aqia/src/utils/speech.js` | Browser TTS + STT wrapper |
-| `aqia/src/styles.css` | Global styles (all CSS — no Tailwind) |
-| `aqia/server/main.py` | FastAPI app — all endpoints |
-| `aqia/server/models.py` | SQLAlchemy ORM models |
-| `aqia/server/database.py` | DB engine & session factory |
-| `aqia/server/auth_utils.py` | bcrypt hashing + JWT creation |
-| `aqia/server/google_tts_service.py` | Google Cloud TTS integration |
-| `aqia/server/tts_service.py` | Coqui TTS integration (requires torch) |
-| `aqia/server/jobs.py` | RQ job definitions for async tasks |
-| `aqia/server/worker.py` | RQ worker entry point |
-| `aqia/server/queue_client.py` | Upstash Redis / RQ queue client |
-| `aqia/server/migrations/` | Alembic DB migration scripts |
-| `aqia/render.yaml` | Render.com deployment config |
-| `aqia/Dockerfile` | Docker build (monolith: Vite build + FastAPI) |
-| `aqia/cloudbuild.yaml` | GCP Cloud Build CI/CD config |
-| `aqia/test/test_backend.html` | Backend API connection tests (auth, dashboard, TTS) |
-| `aqia/test/test_browser_tts.html` | Browser Web Speech TTS test |
-| `aqia/test/test_stt.html` | Groq Whisper STT test |
-| `aqia/test/test_tts.html` | Local backend TTS endpoint test |
-| `aqia/test/review_snippet.html` | Static FinalReview UI preview |
+| `src/App.jsx` | Router + PrivateRoute auth guard |
+| `src/contexts/AuthContext.jsx` | JWT auth state |
+| `src/components/AuthPage.jsx` | Login / Sign-up |
+| `src/components/Dashboard.jsx` | Stats + history chart |
+| `src/components/Onboarding.jsx` | Resume upload + domain setup |
+| `src/components/InterviewFlow.jsx` | Live interview state machine |
+| `src/components/FinalReview.jsx` | Post-interview report |
+| `src/utils/AIservice.js` | Groq chat proxy client |
+| `src/utils/promptBuilder.js` | System prompt + domain list |
+| `src/utils/speech.js` | TTS + STT wrapper |
+| `src/styles.css` | Global CSS (no Tailwind) |
+| `server/main.py` | FastAPI app — all endpoints |
+| `server/models.py` | SQLAlchemy ORM models |
+| `server/database.py` | DB engine + session factory |
+| `server/auth_utils.py` | bcrypt + JWT |
+| `server/google_tts_service.py` | Google Cloud TTS (Chirp3-HD) |
+| `server/jobs.py` | RQ background job definitions |
+| `server/worker.py` | RQ worker entry point |
+| `server/queue_client.py` | Redis/RQ client with sync fallback |
+| `server/start.sh` | Render startup — uvicorn + worker |
+| `server/migrations/` | Alembic DB migration scripts |
+| `public/test/index.html` | Single-page system test dashboard |
+| `render.yaml` | Render.com deployment config |
+| `vercel.json` | Vercel SPA routing config |
+| `vite.config.js` | Vite + dev proxy config |
 
 ---
 
-## 🔄 User Flow (Step by Step)
+## Environment Variables
 
+### Frontend (`aqia/.env`) — local dev only
 ```
-1. User lands on /login
-   → Registers or logs in
-   → JWT stored in localStorage
-
-2. Redirected to / (Dashboard)
-   → Stats fetched from GET /api/dashboard
-   → Shows: Total Interviews, Highest Score, Avg Score
-   → Progress line chart + recent interview history
-
-3. User clicks "New Interview"
-   → Goes to /setup (Onboarding)
-   → Uploads resume PDF (parsed client-side via pdfjs)
-   → Picks a domain (Frontend, Backend, Data Science, etc.)
-   → Sets number of questions (3–20, default 8)
-
-4. Goes to /interview (InterviewFlow)
-   → Groq Llama-3.3 generates questions from resume + domain
-   → AI reads question aloud (Google TTS → Browser TTS fallback)
-   → User answers by voice (browser SpeechRecognition) or text
-   → Loop repeats for N questions
-   → Speech metrics tracked: WPM, filler word count
-
-5. After last question → /review (FinalReview)
-   → Groq generates JSON report: scores (0–100), summary,
-     strengths, weaknesses, per-question feedback + suggested answers
-   → Report saved to DB via POST /api/interviews
-   → User clicks "Go to Dashboard" → navigates to / (Dashboard)
-```
-
----
-
-## 🔑 Environment Variables
-
-### Frontend (`aqia/.env`)
-```
-VITE_API_BASE_URL=http://127.0.0.1:8000      # Backend URL
+VITE_API_BASE_URL=http://127.0.0.1:8000
 ```
 
 ### Backend (`aqia/server/.env`)
 ```
-SECRET_KEY=your_jwt_secret
-DATABASE_URL=postgresql://user:password@ep-xxx.neon.tech/aqia?sslmode=require
-REDIS_URL=rediss://default:password@your-upstash-endpoint:6380
-ALLOWED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
+SECRET_KEY=<random string>
+DATABASE_URL=postgresql://user:pass@ep-xxx.neon.tech/neondb?sslmode=require
+REDIS_URL=rediss://default:pass@xxx.upstash.io:6379
+ALLOWED_ORIGINS=https://aqia-mate.vercel.app
 GOOGLE_APPLICATION_CREDENTIALS=./google-credentials.json
-GROQ_API_KEY=gsk_...          # Server-side only — never sent to browser
+GROQ_API_KEY=gsk_...
 ```
 
----
-
-## 🐛 Known Issues / Technical Debt
-
-| # | Issue | Severity | Status | Location |
-|---|---|---|---|---|
-| 1 | **Groq API key exposed on client side** | 🔴 Critical | ⏳ Pending | `Onboarding.jsx`, `AIservice.js` |
-| 2 | **FinalReview "Go to Dashboard" broken route** `/dashboard` → `/` | 🔴 Critical | ✅ Fixed | `FinalReview.jsx` |
-| 3 | **Onboarding UI unpolished** — bare HTML inputs | 🟡 High | ✅ Done | `Onboarding.jsx` |
-| 4 | **InterviewFlow Tailwind classes** — Tailwind not installed | 🟡 High | ✅ Fixed | `InterviewFlow.jsx` |
-| 5 | **CORS `allow_origins=["*"]`** — unsafe for production | 🟡 High | ✅ Fixed (env-driven) | `server/main.py` |
-| 6 | **SQLite in production** — not suitable for multi-user | 🟡 High | ✅ Done (Neon PostgreSQL) | `server/database.py` |
-| 7 | **No password strength validation** on register | 🟠 Medium | ✅ Done | `AuthPage.jsx` |
-| 8 | **Loading state bare divs** — no spinner | 🟠 Medium | ✅ Fixed | `App.jsx` |
-| 9 | **Coqui TTS requires torch** — disabled when torch missing | 🟠 Medium | ✅ Handled gracefully | `server/main.py` |
-| 10 | **ProgressTracking model** defined but never used | 🟢 Low | ⏳ Pending | `models.py` |
-| 11 | **FinalReview button hover** uses inline JS instead of CSS | 🟢 Low | ✅ Done | `FinalReview.jsx` |
+> Groq API key is **server-side only** — never sent to the browser.
 
 ---
 
-## 🚀 What's Left To Launch
+## Known Issues / Technical Debt
 
-### 🔴 CRITICAL — Must Fix Before Any Users
-
-- [ ] **Move Groq API calls to backend** — create a `POST /api/chat` endpoint in FastAPI that proxies to Groq, so the API key never touches the browser. Update `AIservice.js` to call this endpoint.
-
----
-
-### 🟡 IMPORTANT — Needed for a Good User Experience
-
-- [ ] **Restyle `Onboarding.jsx`** — add `Onboarding.css` with the same glassmorphism/dark-mode design language as the rest of the app.
-
-- [ ] **Add a public landing page** — hero page at `/` for non-logged-in users explaining the product before sign-up.
-
-- [ ] **Upgrade SQLite → PostgreSQL** for any hosted/cloud deployment. Update `DATABASE_URL` and `requirements.txt` (add `psycopg2-binary`).
-
-- [ ] **Add email + password validation** on the sign-up form (min password length, email format feedback).
-
-- [ ] **Error handling UX** — replace `alert()` in `InterviewFlow` with toast notifications or inline error UI.
+| # | Issue | Severity | Status |
+|---|---|---|---|
+| 1 | Groq API key exposed on client | 🔴 Critical | ✅ Fixed — server-side proxy |
+| 2 | FinalReview broken `/dashboard` route | 🔴 Critical | ✅ Fixed |
+| 3 | Onboarding UI unpolished | 🟡 High | ✅ Done |
+| 4 | InterviewFlow Tailwind classes | 🟡 High | ✅ Fixed |
+| 5 | CORS `allow_origins=["*"]` | 🟡 High | ✅ Fixed |
+| 6 | SQLite in production | 🟡 High | ✅ Done — Neon PostgreSQL |
+| 7 | No password validation | 🟠 Medium | ✅ Done |
+| 8 | Loading state bare divs | 🟠 Medium | ✅ Fixed |
+| 9 | Coqui TTS requires torch | 🟠 Medium | ✅ Graceful fallback |
+| 10 | ProgressTracking unused | 🟢 Low | ⏳ Pending |
+| 11 | FinalReview hover inline JS | 🟢 Low | ✅ Fixed |
 
 ---
 
-### 🟠 POLISH — For a Great Launch
+## Pending Features
 
-- [ ] **Dark mode / responsive design audit** — test on mobile, tablet.
-
-- [ ] **Add a "loading" skeleton** to the Dashboard while `fetchDashboard` is pending.
-
-- [ ] **User profile page** — show name, account creation date, ability to change password.
-
-- [ ] **Implement `ProgressTracking` table** — currently in schema but unused.
-
-- [ ] **Interview history detail view** — clicking a past interview shows its full Q&A review.
-
-- [ ] **"Download Report as PDF" button** in `FinalReview.jsx`.
-
-- [ ] **Microphone permission UX** — guide user if mic access is denied.
-
-- [ ] **SEO & meta tags** in `index.html`.
+- [ ] Landing/hero page for non-logged-in visitors
+- [ ] Interview history detail view (click past interview → see full Q&A)
+- [ ] Download report as PDF
+- [ ] User profile page (name, password change)
+- [ ] Mobile responsive audit
+- [ ] ProgressTracking weekly chart
 
 ---
 
-## 🧪 Testing Without LLM Tokens
+## How to Run Locally
 
-To test the app without consuming Groq API tokens, use the standalone HTML test files in `aqia/test/`:
-
-| File | What it tests |
-|---|---|
-| `test/test_backend.html` | All backend API endpoints: health, register, login, dashboard, Google TTS, interviews |
-| `test/test_browser_tts.html` | Browser Web Speech API (no backend needed) |
-| `test/test_stt.html` | Groq Whisper STT (uses mic + Groq API — minimal tokens) |
-| `test/test_tts.html` | Local backend `/tts` endpoint (Coqui TTS) |
-| `test/review_snippet.html` | Static preview of FinalReview UI layout |
-
-Open any of these directly in a browser — no build step needed.
-
----
-
-## 🛠️ How to Run Locally
-
-### Backend
 ```bash
+# Backend
 cd aqia_web/aqia/server
 venv/bin/python3 -m uvicorn main:app --reload --port 8000
-```
 
-### Background Worker (RQ)
-```bash
-cd aqia_web/aqia/server
-venv/bin/python3 worker.py
-```
-
-### Frontend
-```bash
+# Frontend (separate terminal)
 cd aqia_web/aqia
 npm run dev
-# Opens at http://localhost:5173
+# → http://localhost:5173
+
+# System tests
+# Open http://localhost:5173/test/ in browser
 ```
 
-### Reset Database
-Delete `aqia_web/aqia/server/aqia_data.db` and restart the backend — it auto-recreates all tables.
-
 ---
 
-## ☁️ Deployment Options
+## Deployment
 
-| Platform | Config File | Status |
+| Service | Platform | URL |
 |---|---|---|
-| **Render.com** | `render.yaml` | Configured (separate frontend static + backend web service) |
-| **Google Cloud Run** | `Dockerfile` + `cloudbuild.yaml` | Configured (monolith: FastAPI serves built React) |
-
-> [!IMPORTANT]
-> For **Render.com**: Set `VITE_API_BASE_URL` env var to your backend service URL before the frontend build runs. Also add `google-credentials.json` as a Secret File. Set `GROQ_API_KEY` as a secret env var in the Render dashboard.
+| Frontend | Vercel | https://aqia-mate.vercel.app |
+| Backend + Worker | Render | https://aqia-backend.onrender.com |
+| Database | Neon | PostgreSQL |
+| Queue | Upstash | Redis |
 
 ---
 
-## 📦 Tech Stack Summary
+## Tech Stack
 
 | Layer | Technology |
 |---|---|
-| Frontend framework | React 19 + Vite 5 (Node 18 compatible) |
+| Frontend | React 19 + Vite 5 |
 | Routing | React Router v6 |
-| State / Auth | React Context API + JWT (jose, jwt-decode) |
 | Charts | Recharts |
-| Icons | Lucide React |
-| PDF parsing | pdfjs-dist v4 (client-side) |
-| AI / LLM | Groq API — Llama-3.3-70b-versatile |
-| STT | Browser Web Speech API + Groq Whisper |
-| TTS (primary) | Google Cloud Text-to-Speech (Neural2) |
-| TTS (fallback) | Coqui TTS (local, requires torch) → Browser SpeechSynthesis |
+| PDF parsing | pdfjs-dist v4 |
+| AI / LLM | Groq — Llama-3.3-70b |
+| STT | Browser SpeechRecognition + Groq Whisper |
+| TTS | Google Cloud TTS Chirp3-HD → Browser fallback |
 | Backend | FastAPI (Python 3.12) |
-| ORM | SQLAlchemy 2.x |
-| Database | PostgreSQL (Neon) — dev falls back to SQLite |
-| Auth | bcrypt passwords + JWT tokens (python-jose) |
-| Deployment | Google Cloud Run / Render.com |
-
----
-
-## 🎯 Recommended Launch Order
-
-```
-Phase 1 — Fix & Stabilize ✅ DONE
-  ✅ Fix /dashboard → / route bug (FinalReview.jsx)
-  ✅ Fix Tailwind classes in InterviewFlow (replaced with CSS)
-  ✅ Add spinner for loading states (App.jsx)
-  ✅ Fix CORS to use env-var driven origins
-  ✅ Fix Coqui TTS graceful degradation (no torch = warning, not crash)
-  ✅ Downgrade packages to Node 18 compatible versions
-
-Phase 2 — Polish UI (next)
-  ✅ Style Onboarding page
-  ✅ SEO meta tags added (index.html)
-  ⏳ Add landing/hero page for new visitors
-  ⏳ Mobile responsive audit
-
-Phase 3 — Production Readiness
-  ⏳ Move Groq key to backend proxy
-  ✅ Switch to PostgreSQL (Neon)
-  ✅ Message queue (RQ + Upstash Redis)
-  ⏳ Deploy to Render or GCP
-
-Phase 4 — Growth Features (after launch)
-  ⏳ Interview history detail view
-  ⏳ PDF report download
-  ⏳ User profile page
-  ⏳ Weekly progress tracking chart
-```
+| ORM | SQLAlchemy 2.x + Alembic |
+| Database | PostgreSQL (Neon) |
+| Queue | RQ + Upstash Redis |
+| Auth | bcrypt + JWT (python-jose) |

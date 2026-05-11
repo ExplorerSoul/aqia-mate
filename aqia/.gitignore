@@ -1,33 +1,33 @@
-# ── Dependencies ──────────────────────────────────────────────────────────────
+# Dependencies
 node_modules/
 venv/
 
-# ── Build output ──────────────────────────────────────────────────────────────
+# Build output
 dist/
 .vite/
 
-# ── Environment / Secrets — NEVER commit these ────────────────────────────────
+# Environment / Secrets — NEVER commit these
 .env
 server/.env
 server/google-credentials.json
 server/google-credentials.json.json
 
-# ── Database files ────────────────────────────────────────────────────────────
+# Database files
 server/aqia_data.db
 server/aqia_data.db-shm
 server/aqia_data.db-wal
 
-# ── Python cache ──────────────────────────────────────────────────────────────
+# Python cache
 __pycache__/
 server/__pycache__/
 *.pyc
 *.pyo
 
-# ── Generated audio ───────────────────────────────────────────────────────────
+# Generated audio
 generated_audio/
 server/generated_audio/
 
-# ── OS / Editor ───────────────────────────────────────────────────────────────
+# OS / Editor
 .DS_Store
 .vscode/
 *.swp
