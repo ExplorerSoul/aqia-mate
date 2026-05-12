@@ -170,6 +170,19 @@ def health_alias():
     return {"status": "ok"}
 
 # =============================================================================
+# PROFILE
+# =============================================================================
+
+@app.get("/api/me", tags=["Auth"])
+def get_me(current_user: models.User = Depends(get_current_user)):
+    """Return the current user's profile (id, email, name)."""
+    return {
+        "id":    current_user.id,
+        "email": current_user.email,
+        "name":  current_user.name or "",
+    }
+
+# =============================================================================
 # AUTH
 # =============================================================================
 
