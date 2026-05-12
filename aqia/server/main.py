@@ -176,11 +176,26 @@ def health_alias():
 @app.get("/api/me", tags=["Auth"])
 def get_me(current_user: models.User = Depends(get_current_user)):
     """Return the current user's profile (id, email, name)."""
+    # Derive a display name from email if name not set
+    display_name = current_user.name or current_user.email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
     return {
         "id":    current_user.id,
         "email": current_user.email,
-        "name":  current_user.name or "",
+        "name":  display_name,
     }
+
+@app.patch("/api/me", tags=["Auth"])
+def update_me(
+    data: dict,
+    db: Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user),
+):
+    """Update the current user's name."""
+    name = data.get("name", "").strip()
+    if name:
+        current_user.name = name
+        db.commit()
+    return {"id": current_user.id, "email": current_user.email, "name": current_user.name or ""}
 
 # =============================================================================
 # AUTH
