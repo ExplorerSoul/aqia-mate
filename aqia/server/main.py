@@ -1,7 +1,5 @@
 import os
 import warnings
-# load_dotenv MUST run before any other local imports so DATABASE_URL / REDIS_URL
-# are in os.environ when database.py and queue_client.py initialise their engines.
 from dotenv import load_dotenv
 load_dotenv()
 
@@ -50,7 +48,7 @@ try:
 except Exception as e:
     print(f"⚠️  EspeakBackend: {e}")
 
-# ── Database migrations ───────────────────────────────────────────────────────
+# ── Database setup ────────────────────────────────────────────────────────────
 try:
     from alembic.config import Config as AlembicConfig
     from alembic import command as alembic_command
@@ -123,24 +121,20 @@ except Exception as e:
 AUDIO_DIR = "generated_audio"
 os.makedirs(AUDIO_DIR, exist_ok=True)
 
-# ── Groq proxy config ─────────────────────────────────────────────────────────
-GROQ_API_KEY       = os.getenv("GROQ_API_KEY", "")
-GROQ_CHAT_URL      = "https://api.groq.com/openai/v1/chat/completions"
-GROQ_TRANSCRIBE_URL= "https://api.groq.com/openai/v1/audio/transcriptions"
-
-# ── JWT config ────────────────────────────────────────────────────────────────
-SECRET_KEY = os.getenv("SECRET_KEY")
-ALGORITHM  = "HS256"
+GROQ_API_KEY        = os.getenv("GROQ_API_KEY", "")
+GROQ_CHAT_URL       = "https://api.groq.com/openai/v1/chat/completions"
+GROQ_TRANSCRIBE_URL = "https://api.groq.com/openai/v1/audio/transcriptions"
+SECRET_KEY          = os.getenv("SECRET_KEY")
+ALGORITHM           = "HS256"
 
 # =============================================================================
-# AUTH DEPENDENCY  (defined before any route that uses it)
+# AUTH DEPENDENCY
 # =============================================================================
 
 def get_current_user(
     authorization: Optional[str] = Header(None),
     db: Session = Depends(get_db),
 ) -> models.User:
-    """Validate Bearer JWT and return the User row."""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Not authenticated")
     token = authorization.split(" ", 1)[1]
@@ -156,52 +150,58 @@ def get_current_user(
         raise HTTPException(status_code=401, detail="User not found")
     return user
 
+def _require_admin(secret: str):
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
 # =============================================================================
 # HEALTH
 # =============================================================================
 
-@app.delete("/api/admin/user/{email}", tags=["Admin"])
-def admin_delete_user(
-    email: str,
-    secret: str,
-    db: Session = Depends(get_db),
-):
-    """Temp admin endpoint — delete a user by email. Requires admin secret."""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret or secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
-    user = db.query(models.User).filter(models.User.email == email).first()
-    if not user:
-        raise HTTPException(status_code=404, detail=f"User {email} not found")
-    db.delete(user)
-    db.commit()
-    return {"deleted": email}
+@app.get("/api/health", tags=["Health"])
+def health_check():
+    return {"status": "ok", "service": "AQIA Backend"}
 
-@app.get("/api/admin/user/{email}/full", tags=["Admin"])
-def admin_get_user_full(
-    email: str,
-    secret: str,
-    db: Session = Depends(get_db),
-):
-    """Return full user data including all interviews and questions."""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret or secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
+@app.get("/health", include_in_schema=False)
+def health_alias():
+    return {"status": "ok"}
+
+# =============================================================================
+# ADMIN
+# =============================================================================
+
+@app.get("/api/admin/users", tags=["Admin"])
+def admin_list_users(secret: str, db: Session = Depends(get_db)):
+    """List all users."""
+    _require_admin(secret)
+    users = db.query(models.User).order_by(models.User.created_at.desc()).all()
+    return [{"id": u.id, "email": u.email, "name": u.name, "created_at": str(u.created_at)} for u in users]
+
+@app.get("/api/admin/user/{email}", tags=["Admin"])
+def admin_get_user(email: str, secret: str, db: Session = Depends(get_db)):
+    """Check if a user exists."""
+    _require_admin(secret)
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
         return {"exists": False, "email": email}
+    return {"exists": True, "id": user.id, "email": user.email, "name": user.name, "created_at": str(user.created_at)}
 
-    sessions = db.query(models.InterviewSession).filter(
-        models.InterviewSession.user_id == user.id
-    ).order_by(models.InterviewSession.started_at.desc()).all()
-
+@app.get("/api/admin/user/{email}/full", tags=["Admin"])
+def admin_get_user_full(email: str, secret: str, db: Session = Depends(get_db)):
+    """Return full user data including all interviews, questions, analytics."""
+    _require_admin(secret)
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        return {"exists": False, "email": email}
+    sessions = (
+        db.query(models.InterviewSession)
+        .filter(models.InterviewSession.user_id == user.id)
+        .order_by(models.InterviewSession.started_at.desc())
+        .all()
+    )
     return {
-        "user": {
-            "id": user.id,
-            "email": user.email,
-            "name": user.name,
-            "created_at": str(user.created_at),
-        },
+        "user": {"id": user.id, "email": user.email, "name": user.name, "created_at": str(user.created_at)},
         "total_interviews": len(sessions),
         "interviews": [
             {
@@ -211,48 +211,50 @@ def admin_get_user_full(
                 "started_at": str(s.started_at),
                 "completed_at": str(s.completed_at),
                 "questions": [
-                    {
-                        "question": q.question_asked,
-                        "answer": q.user_answer,
-                        "feedback": q.ai_feedback,
-                        "score": q.score,
-                    }
+                    {"question": q.question_asked, "answer": q.user_answer,
+                     "feedback": q.ai_feedback, "score": q.score}
                     for q in s.questions
                 ],
-                "analytics": [
-                    {"category": a.category, "score": a.score}
-                    for a in s.analytics
-                ],
+                "analytics": [{"category": a.category, "score": a.score} for a in s.analytics],
             }
             for s in sessions
         ],
     }
-def admin_get_user(
-    email: str,
-    secret: str,
-    db: Session = Depends(get_db),
-):
-    """Temp admin endpoint — check if a user exists."""
-    admin_secret = os.getenv("ADMIN_SECRET", "")
-    if not admin_secret or secret != admin_secret:
-        raise HTTPException(status_code=403, detail="Forbidden")
+
+@app.delete("/api/admin/user/{email}", tags=["Admin"])
+def admin_delete_user(email: str, secret: str, db: Session = Depends(get_db)):
+    """Delete a user and all their data (CASCADE)."""
+    _require_admin(secret)
     user = db.query(models.User).filter(models.User.email == email).first()
     if not user:
-        return {"exists": False, "email": email}
-    return {
-        "exists": True,
-        "id": user.id,
-        "email": user.email,
-        "name": user.name,
-        "created_at": str(user.created_at),
-    }
-def health_check():
-    """Returns service status. Use this to verify the backend is reachable."""
-    return {"status": "ok", "service": "AQIA Backend"}
+        raise HTTPException(status_code=404, detail=f"User {email} not found")
+    db.delete(user)
+    db.commit()
+    return {"deleted": email}
 
-@app.get("/health", include_in_schema=False)
-def health_alias():
-    return {"status": "ok"}
+@app.delete("/api/admin/cleanup", tags=["Admin"])
+def admin_cleanup(secret: str, db: Session = Depends(get_db)):
+    """
+    Delete ALL users except amitrancho65@gmail.com and prodtest accounts.
+    Returns list of deleted emails.
+    """
+    _require_admin(secret)
+    KEEP = {"amitrancho65@gmail.com"}
+    # Keep any email containing 'prodtest'
+    users_to_delete = (
+        db.query(models.User)
+        .filter(
+            ~models.User.email.in_(KEEP),
+            ~models.User.email.contains("prodtest"),
+        )
+        .all()
+    )
+    deleted = []
+    for user in users_to_delete:
+        deleted.append(user.email)
+        db.delete(user)
+    db.commit()
+    return {"deleted_count": len(deleted), "deleted": deleted}
 
 # =============================================================================
 # PROFILE
@@ -260,21 +262,16 @@ def health_alias():
 
 @app.get("/api/me", tags=["Auth"])
 def get_me(current_user: models.User = Depends(get_current_user)):
-    """Return the current user's profile (id, email, name)."""
-    # Derive a display name from email if name not set
-    display_name = current_user.name or current_user.email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
-    return {
-        "id":    current_user.id,
-        "email": current_user.email,
-        "name":  display_name,
-    }
+    """Return the current user's profile."""
+    display_name = (
+        current_user.name
+        or current_user.email.split('@')[0].replace('.', ' ').replace('_', ' ').title()
+    )
+    return {"id": current_user.id, "email": current_user.email, "name": display_name}
 
 @app.patch("/api/me", tags=["Auth"])
-def update_me(
-    data: dict,
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
+def update_me(data: dict, db: Session = Depends(get_db),
+              current_user: models.User = Depends(get_current_user)):
     """Update the current user's name."""
     name = data.get("name", "").strip()
     if name:
@@ -297,7 +294,6 @@ class UserLogin(BaseModel):
 
 @app.post("/api/register", tags=["Auth"])
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
-    """Register a new user account. Returns a JWT token on success."""
     if db.query(models.User).filter(models.User.email == user.email).first():
         raise HTTPException(status_code=400, detail="Email already registered")
     new_user = models.User(
@@ -313,7 +309,6 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/login", tags=["Auth"])
 def login(user: UserLogin, db: Session = Depends(get_db)):
-    """Login with email + password. Returns a JWT token."""
     db_user = db.query(models.User).filter(models.User.email == user.email).first()
     if not db_user or not verify_password(user.password, db_user.password_hash):
         raise HTTPException(status_code=401, detail="Incorrect email or password")
@@ -321,7 +316,7 @@ def login(user: UserLogin, db: Session = Depends(get_db)):
     return {"access_token": token, "token_type": "bearer"}
 
 # =============================================================================
-# GROQ PROXY  (keeps API key server-side)
+# GROQ PROXY
 # =============================================================================
 
 class ChatRequest(BaseModel):
@@ -332,15 +327,7 @@ class ChatRequest(BaseModel):
     response_format: Optional[dict] = None
 
 @app.post("/api/chat", tags=["AI Proxy"])
-async def proxy_chat(
-    request: ChatRequest,
-    _: models.User = Depends(get_current_user),
-):
-    """
-    Proxy chat completions to Groq (Llama-3.3-70b).
-    The Groq API key never leaves the server.
-    Requires: Bearer token.
-    """
+async def proxy_chat(request: ChatRequest, _: models.User = Depends(get_current_user)):
     if not GROQ_API_KEY:
         raise HTTPException(status_code=503, detail="Groq API key not configured on server.")
     async with httpx.AsyncClient(timeout=60) as client:
@@ -359,11 +346,6 @@ async def proxy_transcribe(
     model: str = Form(default="whisper-large-v3"),
     _: models.User = Depends(get_current_user),
 ):
-    """
-    Proxy Whisper audio transcription to Groq.
-    The Groq API key never leaves the server.
-    Requires: Bearer token + multipart audio file.
-    """
     if not GROQ_API_KEY:
         raise HTTPException(status_code=503, detail="Groq API key not configured on server.")
     audio_bytes = await file.read()
@@ -389,7 +371,6 @@ class TTSRequest(BaseModel):
 
 @app.post("/google-tts", tags=["TTS"])
 async def google_tts(request: TTSRequest):
-    """Generate speech via Google Cloud TTS (Neural2). Returns MP3 audio."""
     if not google_tts_service:
         raise HTTPException(status_code=503, detail="Google TTS not available")
     try:
@@ -401,9 +382,8 @@ async def google_tts(request: TTSRequest):
 
 @app.post("/tts", tags=["TTS"])
 async def coqui_tts(request: TTSRequest):
-    """Generate speech via local Coqui TTS. Returns WAV audio. Requires torch."""
     if not tts_service:
-        raise HTTPException(status_code=503, detail="Coqui TTS not available (torch not installed)")
+        raise HTTPException(status_code=503, detail="Coqui TTS not available")
     try:
         path = os.path.join(AUDIO_DIR, f"{uuid.uuid4()}.wav")
         tts_service.generate_audio(request.text, path)
@@ -433,15 +413,7 @@ def save_interview(
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    """
-    Save a completed interview session.
-    - Enforces 1 interview per calendar day per user (429 if exceeded).
-    - Enqueues DB write via Redis/RQ; falls back to sync if Redis is not set.
-    - Returns immediately — poll /api/jobs/{job_id} to confirm save.
-    """
-    today_start = datetime.datetime.utcnow().replace(
-        hour=0, minute=0, second=0, microsecond=0
-    )
+    today_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
     today_count = (
         db.query(func.count(models.InterviewSession.id))
         .filter(
@@ -452,10 +424,8 @@ def save_interview(
         .scalar()
     )
     if today_count >= 1:
-        raise HTTPException(
-            status_code=429,
-            detail="Daily interview limit reached. You can take one interview per day.",
-        )
+        raise HTTPException(status_code=429,
+                            detail="Daily interview limit reached. You can take one interview per day.")
 
     job_id, result = enqueue_or_run(
         save_interview_job,
@@ -467,18 +437,13 @@ def save_interview(
     )
 
     if job_id:
-        return {"status": "queued", "job_id": job_id,
-                "message": "Interview is being saved in the background."}
-    return {"status": "saved", "job_id": None,
-            "session_id": result.get("session_id"),
+        return {"status": "queued", "job_id": job_id, "message": "Interview is being saved in the background."}
+    return {"status": "saved", "job_id": None, "session_id": result.get("session_id"),
             "message": "Interview saved successfully."}
 
 @app.get("/api/interviews", tags=["Interviews"])
-def list_interviews(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """Return all interview sessions for the current user, newest first."""
+def list_interviews(db: Session = Depends(get_db),
+                    current_user: models.User = Depends(get_current_user)):
     sessions = (
         db.query(models.InterviewSession)
         .filter(models.InterviewSession.user_id == current_user.id)
@@ -487,9 +452,7 @@ def list_interviews(
     )
     return [
         {
-            "id": s.id,
-            "job_category": s.job_category,
-            "overall_score": s.overall_score,
+            "id": s.id, "job_category": s.job_category, "overall_score": s.overall_score,
             "started_at": s.started_at.isoformat() if s.started_at else None,
             "completed_at": s.completed_at.isoformat() if s.completed_at else None,
         }
@@ -498,7 +461,6 @@ def list_interviews(
 
 @app.get("/api/jobs/{job_id}", tags=["Interviews"])
 def get_job_status(job_id: str, _: models.User = Depends(get_current_user)):
-    """Poll the status of a background interview-save job."""
     from queue_client import get_queue
     if get_queue() is None:
         raise HTTPException(status_code=404, detail="Queue not configured")
@@ -508,10 +470,9 @@ def get_job_status(job_id: str, _: models.User = Depends(get_current_user)):
         conn = Redis.from_url(os.getenv("REDIS_URL", ""))
         job = Job.fetch(job_id, connection=conn)
         return {
-            "job_id": job_id,
-            "status": job.get_status().value,
+            "job_id": job_id, "status": job.get_status().value,
             "result": job.result if job.is_finished else None,
-            "error":  str(job.exc_info) if job.is_failed else None,
+            "error": str(job.exc_info) if job.is_failed else None,
         }
     except Exception as e:
         raise HTTPException(status_code=404, detail=f"Job not found: {e}")
@@ -521,14 +482,8 @@ def get_job_status(job_id: str, _: models.User = Depends(get_current_user)):
 # =============================================================================
 
 @app.get("/api/dashboard", tags=["Dashboard"])
-def get_dashboard(
-    db: Session = Depends(get_db),
-    current_user: models.User = Depends(get_current_user),
-):
-    """
-    Return aggregated stats for the Dashboard.
-    Uses SQL aggregates — no Python-side loops.
-    """
+def get_dashboard(db: Session = Depends(get_db),
+                  current_user: models.User = Depends(get_current_user)):
     uid = current_user.id
 
     agg = (
@@ -537,67 +492,47 @@ def get_dashboard(
             func.max(models.InterviewSession.overall_score).label("highest"),
             func.avg(models.InterviewSession.overall_score).label("avg"),
         )
-        .filter(
-            models.InterviewSession.user_id == uid,
-            models.InterviewSession.overall_score.isnot(None),
-        )
+        .filter(models.InterviewSession.user_id == uid,
+                models.InterviewSession.overall_score.isnot(None))
         .one()
     )
 
     recent_rows = (
-        db.query(
-            models.InterviewSession.id,
-            models.InterviewSession.job_category,
-            models.InterviewSession.overall_score,
-            models.InterviewSession.started_at,
-        )
-        .filter(
-            models.InterviewSession.user_id == uid,
-            models.InterviewSession.overall_score.isnot(None),
-        )
+        db.query(models.InterviewSession.id, models.InterviewSession.job_category,
+                 models.InterviewSession.overall_score, models.InterviewSession.started_at)
+        .filter(models.InterviewSession.user_id == uid,
+                models.InterviewSession.overall_score.isnot(None))
         .order_by(models.InterviewSession.started_at.desc())
-        .limit(6)
-        .all()
+        .limit(6).all()
     )
 
     chart_rows = (
-        db.query(
-            models.InterviewSession.started_at,
-            models.InterviewSession.overall_score,
-        )
-        .filter(
-            models.InterviewSession.user_id == uid,
-            models.InterviewSession.overall_score.isnot(None),
-        )
+        db.query(models.InterviewSession.started_at, models.InterviewSession.overall_score)
+        .filter(models.InterviewSession.user_id == uid,
+                models.InterviewSession.overall_score.isnot(None))
         .order_by(models.InterviewSession.started_at.asc())
-        .limit(30)
-        .all()
+        .limit(30).all()
     )
 
     return {
-        "total_interviews":  agg.total or 0,
-        "highest_score":     agg.highest or 0,
-        "avg_score":         round(agg.avg) if agg.avg else 0,
+        "total_interviews": agg.total or 0,
+        "highest_score":    agg.highest or 0,
+        "avg_score":        round(agg.avg) if agg.avg else 0,
         "recent_interviews": [
-            {
-                "id":    r.id,
-                "role":  r.job_category,
-                "date":  r.started_at.strftime("%b %d, %Y") if r.started_at else "",
-                "score": r.overall_score,
-            }
+            {"id": r.id, "role": r.job_category,
+             "date": r.started_at.strftime("%b %d, %Y") if r.started_at else "",
+             "score": r.overall_score}
             for r in recent_rows
         ],
         "progress_data": [
-            {
-                "date":  r.started_at.strftime("%b %d") if r.started_at else "",
-                "score": r.overall_score,
-            }
+            {"date": r.started_at.strftime("%b %d") if r.started_at else "",
+             "score": r.overall_score}
             for r in chart_rows
         ],
     }
 
 # =============================================================================
-# STATIC FILE SERVING  (deployed mode — FastAPI serves built React)
+# STATIC FILE SERVING
 # =============================================================================
 
 STATIC_DIR = os.path.join(os.path.dirname(__file__), "static")
