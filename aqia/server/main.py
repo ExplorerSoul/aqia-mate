@@ -160,7 +160,43 @@ def get_current_user(
 # HEALTH
 # =============================================================================
 
-@app.get("/api/health", tags=["Health"])
+@app.delete("/api/admin/user/{email}", tags=["Admin"])
+def admin_delete_user(
+    email: str,
+    secret: str,
+    db: Session = Depends(get_db),
+):
+    """Temp admin endpoint — delete a user by email. Requires admin secret."""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        raise HTTPException(status_code=404, detail=f"User {email} not found")
+    db.delete(user)
+    db.commit()
+    return {"deleted": email}
+
+@app.get("/api/admin/user/{email}", tags=["Admin"])
+def admin_get_user(
+    email: str,
+    secret: str,
+    db: Session = Depends(get_db),
+):
+    """Temp admin endpoint — check if a user exists."""
+    admin_secret = os.getenv("ADMIN_SECRET", "")
+    if not admin_secret or secret != admin_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    user = db.query(models.User).filter(models.User.email == email).first()
+    if not user:
+        return {"exists": False, "email": email}
+    return {
+        "exists": True,
+        "id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "created_at": str(user.created_at),
+    }
 def health_check():
     """Returns service status. Use this to verify the backend is reachable."""
     return {"status": "ok", "service": "AQIA Backend"}
