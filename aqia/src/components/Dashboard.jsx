@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { Activity, Award, Clock } from 'lucide-react';
 import './Dashboard.css';
@@ -211,30 +211,34 @@ function CommunitySpotlight() {
 const Dashboard = ({ setAppData }) => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   const [dashData, setDashData] = useState(null);
   const [loadingDash, setLoadingDash] = useState(true);
 
+  const fetchDashboard = async () => {
+    setLoadingDash(true);
+    try {
+      const token = localStorage.getItem('token');
+      const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
+      const res = await fetch(`${baseUrl}/api/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error('Failed to fetch dashboard data');
+      const data = await res.json();
+      setDashData(data);
+    } catch (err) {
+      console.error('Dashboard fetch failed:', err);
+      setDashData({ total_interviews: 0, highest_score: 0, avg_score: 0, recent_interviews: [], progress_data: [] });
+    } finally {
+      setLoadingDash(false);
+    }
+  };
+
+  // Refetch every time the user navigates to the dashboard (including after interview)
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const token = localStorage.getItem('token');
-        const baseUrl = import.meta.env.VITE_API_BASE_URL || 'http://127.0.0.1:8000';
-        const res = await fetch(`${baseUrl}/api/dashboard`, {
-          headers: { Authorization: `Bearer ${token}` },
-        });
-        if (!res.ok) throw new Error('Failed to fetch dashboard data');
-        const data = await res.json();
-        setDashData(data);
-      } catch (err) {
-        console.error('Dashboard fetch failed:', err);
-        setDashData({ total_interviews: 0, highest_score: 0, avg_score: 0, recent_interviews: [], progress_data: [] });
-      } finally {
-        setLoadingDash(false);
-      }
-    };
     fetchDashboard();
-  }, []);
+  }, [location.key]);
 
   return (
     <div className="dashboard-container">
@@ -244,6 +248,7 @@ const Dashboard = ({ setAppData }) => {
           <p className="welcome-message">Welcome back, {user?.email?.split('@')[0]}! Ready to level up?</p>
         </div>
         <div className="action-buttons">
+          <button className="btn-refresh" onClick={fetchDashboard} title="Refresh">↻</button>
           <button className="btn-primary" onClick={() => navigate('/setup')}>New Interview</button>
           <button className="btn-secondary" onClick={() => { logout(); navigate('/login'); }}>Logout</button>
         </div>
