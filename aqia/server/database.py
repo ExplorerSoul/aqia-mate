@@ -7,12 +7,18 @@ import os
 # SQLAlchemy 2.x requires "postgresql://" — fix it transparently.
 # Neon sometimes uses sslmode=req — psycopg2 needs sslmode=require.
 _raw_url = os.getenv("DATABASE_URL", "sqlite:///./aqia_data.db")
-DATABASE_URL = (
-    _raw_url
-    .replace("postgres://", "postgresql://", 1)
-    .replace("sslmode=req&", "sslmode=require&")
-    .replace("sslmode=req", "sslmode=require")
-)
+
+# Normalize the URL for SQLAlchemy + psycopg2:
+# 1. Replace "postgres://" with "postgresql://" (Render/Heroku style)
+# 2. Replace "sslmode=req" with "sslmode=require" — but only the exact short form
+#    Use a precise replacement to avoid double-applying on an already-correct URL.
+_url = _raw_url.replace("postgres://", "postgresql://", 1)
+
+# Only fix "sslmode=req" if it is NOT already "sslmode=require"
+import re as _re
+_url = _re.sub(r'sslmode=req(?!uire)', 'sslmode=require', _url)
+
+DATABASE_URL = _url
 
 _is_sqlite = DATABASE_URL.startswith("sqlite")
 
