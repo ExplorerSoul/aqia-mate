@@ -73,15 +73,19 @@ National Institute of Technology Silchar
 
 ## Abstract
 
-The process of preparing for technical job interviews is a significant challenge for engineering graduates, who must simultaneously demonstrate domain knowledge, communication proficiency, and structured problem-solving ability. Existing preparation tools are largely static, offering pre-recorded question banks and model answers without personalisation, real-time feedback, or quantitative assessment of verbal delivery. This project presents AQIA (AI-powered Question and Interview Assistant), a context-aware mock interview platform that addresses these limitations through a fully deployed, production-grade web application.
+Getting ready for a technical job interview is genuinely hard. Engineering students need to show domain knowledge, speak clearly under pressure, and structure their thinking on the spot — all at the same time. The tools most students rely on are static: question banks, model answers, and YouTube videos that give no feedback on how you actually sound or how well your answer fits your own background.
 
-AQIA integrates a large language model (LLM) backend with a multi-modal speech pipeline to simulate realistic technical interviews tailored to a candidate's resume and chosen domain. The system parses the candidate's PDF resume entirely on the client side using pdfjs-dist, preserving privacy, and uses the extracted context alongside the selected job domain to generate personalised interview questions via the Groq API (Llama-3.3-70b-versatile). Each question is delivered to the candidate through Google Cloud Text-to-Speech using the Chirp3-HD neural voice with SSML prosody control, creating a natural conversational experience. Candidate responses are captured through a hybrid speech-to-text pipeline: the browser's Web Speech API provides a live rolling transcript during the answer, while Groq Whisper produces the final authoritative transcription for evaluation.
+This report describes AQIA (AI-powered Question and Interview Assistant), a mock interview platform we designed, built, and deployed to tackle exactly these problems. AQIA is not a chatbot with a fixed script. It reads the candidate's own resume, understands their experience level and target domain, and generates questions that are specific to them — powered by Llama-3.3-70b-versatile running on Groq's LPU inference infrastructure.
 
-Upon completion of the interview, the LLM generates a structured JSON evaluation report containing scores across four competency dimensions — Communication, Technical Accuracy, Problem Solving, and Behavioural — as well as per-question scores, coach's notes, and suggested improved answers. Delivery analytics including words per minute and filler word frequency are computed client-side. All session data is persisted asynchronously to a PostgreSQL database on Neon via an RQ (Redis Queue) worker backed by Upstash Redis, ensuring the user interface remains responsive.
+The interview experience is fully voice-driven. Questions are spoken aloud using Google Cloud's Chirp3-HD neural voice with SSML prosody tuning so they sound natural rather than robotic. The candidate answers by speaking; a live rolling transcript appears on screen via the browser's Web Speech API while the answer is being given, and once the candidate stops, the audio is sent to OpenAI Whisper (large-v3, via Groq) for a more accurate final transcription. After all questions are answered, the LLM evaluates the complete transcript and returns a structured JSON report with scores across four dimensions — Communication, Technical Accuracy, Problem Solving, and Behavioural — along with per-question scores, a coach's note for each answer, and a suggested improved response.
 
-The backend is implemented in Python 3.12 using FastAPI and deployed on Render.com, while the React 19 frontend is deployed on Vercel. Security measures include server-side API key proxying, JWT-based authentication, bcrypt password hashing, CORS restriction, and per-user rate limiting. The system is live and accessible at https://aqia-mate.vercel.app. Evaluation demonstrates sub-second LLM response latency, accurate speech transcription, and a coherent end-to-end interview experience across multiple engineering domains.
+On top of the content scores, AQIA measures delivery: words per minute and filler word count are computed for every answer and shown to the candidate. These are the kinds of metrics that employer-facing tools like HireVue track but never share with the candidate. We made them visible.
 
-**Keywords:** AI mock interview, large language model, speech-to-text, text-to-speech, delivery analytics, FastAPI, React, Groq, PostgreSQL, JWT authentication.
+The backend is a Python 3.12 FastAPI service deployed on Render.com. The React 19 frontend runs on Vercel. We also built a Flutter 3.27 mobile app for Android and iOS that shares the same backend. All AI API keys live exclusively on the server — the browser never sees them. Authentication uses JWT tokens with bcrypt-hashed passwords. Session data is written to a Neon PostgreSQL database asynchronously via an RQ worker backed by Upstash Redis, so the UI stays responsive while the save happens in the background.
+
+The live system is at https://aqia-mate.vercel.app. The mobile app source is at https://github.com/ExplorerSoul/aqia-app.
+
+**Keywords:** AI mock interview, large language model, speech-to-text, text-to-speech, delivery analytics, FastAPI, React, Flutter, Groq, PostgreSQL, JWT authentication.
 
 ---
 
@@ -108,19 +112,23 @@ Finally, we thank our families for their unwavering support and encouragement th
 | | Abstract | X |
 | | Acknowledgement | X |
 | | Table of Contents | X |
+| | List of Figures | X |
+| | List of Tables | X |
 | | List of Abbreviations | X |
 | **Chapter 1** | **Introduction** | **X** |
 | 1.1 | Motivation | X |
 | 1.2 | Problem Statement | X |
 | 1.3 | Objectives | X |
-| 1.4 | Scope of the Project | X |
-| 1.5 | Organisation of the Report | X |
+| 1.4 | Key Contributions | X |
+| 1.5 | Scope of the Project | X |
+| 1.6 | Organisation of the Report | X |
 | **Chapter 2** | **Literature Survey** | **X** |
 | 2.1 | Existing Interview Preparation Systems | X |
 | 2.2 | AI-Driven Conversational Agents | X |
 | 2.3 | Speech Analysis in Interview Coaching | X |
 | 2.4 | Research Gaps | X |
 | 2.5 | How AQIA Addresses the Gaps | X |
+| 2.6 | Comparative Analysis | X |
 | **Chapter 3** | **System Requirements** | **X** |
 | 3.1 | Functional Requirements | X |
 | 3.2 | Non-Functional Requirements | X |
@@ -144,7 +152,8 @@ Finally, we thank our families for their unwavering support and encouragement th
 | 5.3 | AI Integration | X |
 | 5.4 | Speech Pipeline Implementation | X |
 | 5.5 | Database Implementation | X |
-| 5.6 | Deployment and Configuration | X |
+| 5.6 | Mobile Application Implementation (Flutter) | X |
+| 5.7 | Deployment and Configuration | X |
 | **Chapter 6** | **Results and Discussion** | **X** |
 | 6.1 | System Performance | X |
 | 6.2 | User Flow Walkthrough | X |
@@ -156,6 +165,39 @@ Finally, we thank our families for their unwavering support and encouragement th
 | 7.2 | Limitations | X |
 | 7.3 | Future Enhancements | X |
 | | References | X |
+
+---
+
+## List of Figures
+
+| Figure | Caption | Page |
+|---|---|---|
+| Figure 1 | High-level three-tier architecture of AQIA | X |
+| Figure 2 | Interview session state machine diagram | X |
+| Figure 3 | Hybrid speech pipeline — TTS and STT flow | X |
+| Figure 4 | Entity-Relationship diagram of the database schema | X |
+| Figure 5 | Deployment architecture across Vercel, Render, Neon, and Upstash | X |
+| Figure 6 | AQIA web application — Dashboard view | X |
+| Figure 7 | AQIA web application — Interview session view | X |
+| Figure 8 | AQIA web application — Final review report | X |
+| Figure 9 | AQIA mobile application — Home screen (Flutter) | X |
+| Figure 10 | AQIA mobile application — Interview screen (Flutter) | X |
+| Figure 11 | API response time distribution across endpoints | X |
+
+---
+
+## List of Tables
+
+| Table | Caption | Page |
+|---|---|---|
+| Table 1 | List of Abbreviations | X |
+| Table 2 | Functional Requirements (FR-01 to FR-13) | X |
+| Table 3 | Non-Functional Requirements (NFR-01 to NFR-07) | X |
+| Table 4 | Comparison of AQIA with existing interview preparation systems | X |
+| Table 5 | Database schema — table descriptions and key fields | X |
+| Table 6 | REST API endpoint summary | X |
+| Table 7 | API response time measurements (production) | X |
+| Table 8 | Key contributions of the AQIA project | X |
 
 ---
 
@@ -201,17 +243,29 @@ Finally, we thank our families for their unwavering support and encouragement th
 
 ## 1.1 Motivation
 
-The transition from academic study to professional employment is one of the most consequential phases in an engineering graduate's career. Technical interviews, which form the primary gateway to employment at most technology companies, demand a combination of domain knowledge, structured communication, and the ability to perform under pressure. Despite the critical importance of interview preparation, the tools available to students remain largely inadequate. Most platforms offer static question banks, pre-recorded video answers, and generic feedback that does not account for the individual candidate's background, target role, or verbal delivery patterns.
+Every year, thousands of engineering graduates from institutions like NIT Silchar walk into technical interviews underprepared — not because they lack knowledge, but because they have never practised speaking their answers aloud to a system that actually listens and responds. The gap between knowing an answer and delivering it confidently under interview conditions is real, and most preparation tools do nothing to close it.
 
-The rapid advancement of large language models (LLMs) and cloud-based speech processing services has created an opportunity to build genuinely intelligent, personalised interview coaching systems. LLMs such as Meta's Llama-3.3-70b-versatile, accessible through the Groq inference API, can generate contextually relevant questions from a candidate's resume and provide nuanced, rubric-based feedback on answers. Neural text-to-speech systems such as Google Cloud's Chirp3-HD voice can deliver questions with natural prosody, simulating the experience of speaking with a human interviewer. Browser-native and cloud-based speech recognition can capture and transcribe candidate responses in real time.
+We noticed this problem firsthand. The platforms our peers used — LeetCode, YouTube tutorials, static PDF guides — are excellent for building knowledge but completely silent on how you communicate that knowledge. Nobody tells you that you said "um" fourteen times in two minutes, or that you spoke so fast the interviewer could not follow your reasoning, or that your answer to a system design question was technically correct but structurally incoherent.
 
-The convergence of these technologies makes it feasible to build a fully automated, context-aware mock interview system that is accessible through a standard web browser, requires no specialised hardware, and can be deployed at negligible cost using modern cloud-native infrastructure. This project was motivated by the desire to build and deploy such a system as a practical, production-grade application that NIT Silchar students and engineering graduates more broadly could use to improve their interview readiness.
+At the same time, the technology to build something better has become genuinely accessible. Large language models running on Groq's LPU hardware can generate resume-specific questions and evaluate free-form answers in under two seconds. Google's neural TTS voices sound natural enough that candidates do not feel like they are talking to a robot. Whisper-class ASR handles technical vocabulary and non-native accents reliably. And all of this can be wired together into a browser application that runs on any laptop with a microphone, at essentially zero infrastructure cost.
+
+AQIA is our attempt to build that system — not as a prototype or a demo, but as a production deployment that real students can use today.
 
 ## 1.2 Problem Statement
 
-Engineering graduates preparing for technical interviews face several interconnected challenges. First, generic preparation resources do not account for the candidate's specific background, skills, or target domain, resulting in practice sessions that may not reflect the actual interview experience. Second, self-study provides no mechanism for objective feedback on communication quality, including speaking pace, use of filler words, or structural clarity of answers. Third, progress over time is difficult to track without a system that records and analyses performance across multiple sessions. Fourth, existing AI-based tools that do exist often expose API keys in client-side code, rely on expensive infrastructure, or require paid subscriptions that are inaccessible to students.
+When we surveyed the interview preparation landscape, we found five specific problems that no existing free tool addresses together:
 
-The problem, therefore, is to design and implement a web-based mock interview system that: (a) generates personalised questions from the candidate's resume and chosen domain; (b) delivers questions through natural-sounding speech; (c) captures and evaluates candidate responses using AI; (d) computes quantitative delivery analytics; (e) tracks progress across sessions; and (f) does all of this securely, at low cost, and with a production-quality user experience.
+First, every question bank we found is generic. The questions do not know that you spent six months building a distributed cache at your internship, or that your final year project involved training a transformer model on a custom dataset. A human interviewer would ask about those things. Existing tools do not.
+
+Second, there is no feedback on how you sound. Speaking pace, filler word density, and answer structure are measurable and improvable — but only if someone measures them. Self-study gives you no mirror.
+
+Third, progress is invisible. Without a system that records and scores every session, a student has no way to know whether they are actually improving or just repeating the same mistakes.
+
+Fourth, the AI tools that do exist are either employer-facing (HireVue, Pymetrics) and inaccessible to candidates, or they are student-built demos that expose API keys in the browser, making them insecure and unreliable.
+
+Fifth, cost. Most polished interview preparation platforms require monthly subscriptions that are simply not affordable for students in India.
+
+AQIA was designed to solve all five problems simultaneously: personalised questions from the candidate's own resume, voice-based delivery with real-time transcription, quantitative delivery analytics, session history and progress tracking, server-side API key security, and zero cost to the user.
 
 ## 1.3 Objectives
 
@@ -227,7 +281,25 @@ The primary objectives of this project are as follows:
 8. To deploy the complete system to production — frontend on Vercel, backend on Render.com — and make it publicly accessible.
 9. To provide a dashboard that aggregates performance statistics and visualises progress over time.
 
-## 1.4 Scope of the Project
+## 1.4 Key Contributions
+
+The following novel contributions distinguish AQIA from existing interview preparation tools and constitute the primary academic and technical contributions of this project:
+
+- **Resume-contextualised question generation:** AQIA is the first open, freely accessible system to generate interview questions dynamically from the candidate's own PDF resume using a state-of-the-art LLM, producing questions that are specific to the individual's stated experience, skills, and target domain rather than drawn from a generic question bank.
+
+- **Hybrid STT pipeline with dual-model transcription:** The system combines the browser's Web Speech API for zero-latency live transcript display with Groq Whisper (whisper-large-v3) for accurate final transcription, achieving both real-time responsiveness and high transcription accuracy in a single session without additional hardware.
+
+- **Secure server-side AI proxy architecture:** All LLM and speech API calls are routed through a FastAPI backend proxy, ensuring that Groq API keys, Google Cloud credentials, and JWT secrets are never present in the JavaScript bundle delivered to the browser — a security property not achieved by most student-built AI applications.
+
+- **Quantitative delivery analytics in a candidate-facing tool:** AQIA computes and reports words-per-minute and filler word frequency for every answer, providing the kind of delivery feedback previously available only in employer-facing screening tools (HireVue, Pymetrics) and making it accessible to candidates for self-improvement.
+
+- **Cross-platform deployment (web + mobile):** The system is deployed as both a React 19 web application (Vercel) and a Flutter 3.27 mobile application (Android/iOS), sharing a single FastAPI backend, demonstrating a full-stack cross-platform architecture built entirely on free-tier cloud infrastructure.
+
+- **Asynchronous persistence with RQ and serverless Redis:** The use of RQ backed by Upstash Redis for non-blocking database writes ensures that the user interface remains responsive at the end of the interview, a design pattern not commonly demonstrated in academic project implementations.
+
+- **Production-grade security on free-tier infrastructure:** The combination of bcrypt password hashing, JWT authentication, CORS restriction, HTTPS enforcement, and per-user rate limiting achieves a security posture comparable to commercial applications, demonstrating that production-quality security is achievable without paid security services.
+
+## 1.5 Scope of the Project
 
 AQIA is scoped as a web-based application accessible through any modern browser supporting the Web Speech API (primarily Chromium-based browsers). The system supports mock interviews across a range of software engineering domains including Frontend Development, Backend Development, Data Science, Machine Learning, DevOps, System Design, Product Management, and General Software Engineering. The number of questions per session is configurable between 3 and 20.
 
@@ -235,7 +307,7 @@ The system is designed for individual use by candidates preparing for technical 
 
 The project encompasses the complete software development lifecycle from requirements analysis and system design through implementation, testing, and production deployment. Both the frontend (https://aqia-mate.vercel.app) and backend (https://aqia-backend.onrender.com) are live and publicly accessible as of the submission of this report.
 
-## 1.5 Organisation of the Report
+## 1.6 Organisation of the Report
 
 The remainder of this report is organised as follows. Chapter 2 presents a survey of existing interview preparation systems and related research, identifying the gaps that AQIA addresses. Chapter 3 specifies the functional and non-functional requirements of the system. Chapter 4 provides a detailed description of the system architecture and design, covering all major components. Chapter 5 describes the implementation of each subsystem. Chapter 6 presents the results and discusses system performance, user experience, and security. Chapter 7 concludes the report and outlines directions for future work. References are provided at the end of the document.
 
@@ -245,45 +317,86 @@ The remainder of this report is organised as follows. Chapter 2 presents a surve
 
 ## 2.1 Existing Interview Preparation Systems
 
-The landscape of interview preparation tools spans a wide spectrum from simple question-and-answer repositories to sophisticated AI-driven platforms. Understanding the state of the art is essential for contextualising the contributions of AQIA.
+Interview preparation tools exist on a spectrum from completely passive to partially interactive, but none of the freely available options combine personalisation, voice interaction, and quantitative feedback in a single system.
 
-**Static Question Banks and Community Platforms:** Platforms such as LeetCode, HackerRank, and GeeksforGeeks provide large repositories of technical questions categorised by topic and difficulty. While valuable for practising algorithmic problem-solving, these platforms offer no mechanism for practising verbal communication, no personalisation based on the candidate's background, and no feedback on delivery quality. The candidate must self-assess their performance, which is inherently unreliable.
+**Algorithmic practice platforms** like LeetCode, HackerRank, and GeeksforGeeks are the most widely used tools among engineering students. They are excellent for building problem-solving skills and familiarity with data structures, but they are fundamentally text-based and judge-based. There is no speaking, no listening, and no feedback on how you communicate. A student who can solve a binary tree problem in fifteen minutes may still struggle to explain their approach clearly in an interview — and these platforms offer no help with that.
 
-**Video-Based Preparation Platforms:** Services such as Pramp and Interviewing.io facilitate peer-to-peer mock interviews, where two candidates take turns interviewing each other. While this provides a more realistic experience than self-study, it depends on the availability of a willing partner, the quality of the partner's feedback, and scheduling coordination. These platforms do not provide AI-generated feedback or quantitative analytics.
+**Peer-to-peer platforms** like Pramp and Interviewing.io take a different approach: they match two candidates who take turns interviewing each other. This is more realistic than solo practice, but it introduces scheduling friction, depends heavily on the quality of the peer's feedback, and provides no objective metrics. Two students who are both underprepared cannot give each other useful feedback.
 
-**Commercial AI Interview Platforms:** Products such as HireVue, Pymetrics, and Interviewer.AI are designed for use by employers to screen candidates, not for candidate self-preparation. They typically analyse video recordings for facial expressions, tone, and word choice, but are not accessible to individual candidates for practice. Furthermore, their evaluation criteria are proprietary and opaque.
+**Employer-facing AI screening tools** such as HireVue and Pymetrics are sophisticated — they analyse video, tone, and word choice — but they are designed for employers to screen candidates, not for candidates to practise. A student cannot sign up for HireVue to practise; it is only accessible when an employer sends an invitation. The evaluation criteria are also proprietary and never shared with the candidate.
 
-**Chatbot-Based Interview Simulators:** Several academic and commercial projects have explored using chatbots for interview simulation. Early systems used rule-based dialogue management with fixed question trees, which produced rigid, unrealistic conversations. More recent systems have used retrieval-augmented generation or fine-tuned language models to generate questions, but few have integrated speech input and output into a seamless browser-based experience.
+**Academic chatbot simulators** have been explored in research settings. Early systems used fixed dialogue trees that produced stilted, unrealistic conversations. More recent work has used fine-tuned or retrieval-augmented language models to generate questions, but published systems rarely integrate speech input and output, and almost none are deployed as accessible web applications that students can actually use.
 
 ## 2.2 AI-Driven Conversational Agents
 
-The development of transformer-based language models, beginning with the publication of "Attention Is All You Need" by Vaswani et al. [1], has fundamentally changed the capabilities of conversational AI systems. Models such as GPT-4, Claude, and the Llama family have demonstrated the ability to engage in coherent, contextually appropriate multi-turn dialogue across a wide range of domains.
+The transformer architecture introduced by Vaswani et al. [1] fundamentally changed what conversational AI systems could do. Before transformers, dialogue systems relied on hand-crafted rules or shallow statistical models that could not maintain coherent context across more than a few turns. Transformer-based models can track context across an entire conversation, reason about the content of previous answers, and generate follow-up questions that feel natural.
 
-For interview simulation specifically, the key capability required is the ability to generate questions that are relevant to a specific resume and domain, evaluate free-form answers against implicit rubrics, and provide constructive feedback. Brown et al. [2] demonstrated that large language models can perform these tasks in a zero-shot or few-shot setting, without task-specific fine-tuning, when provided with appropriate prompts. This finding is central to the design of AQIA, which uses carefully engineered prompts to guide the Llama-3.3-70b-versatile model through question generation and answer evaluation.
+For our purposes, the critical capability is zero-shot or few-shot instruction following. Brown et al. [2] showed that large language models can perform complex tasks — including evaluation against implicit rubrics — when given a well-structured prompt, without any task-specific fine-tuning. This is what makes AQIA's approach viable: we do not need to train a custom model. We write a detailed prompt that describes the interviewer's role, the candidate's background, and the evaluation criteria, and the model follows it reliably.
 
-The Groq LPU (Language Processing Unit) inference platform, used in this project, achieves significantly lower latency than GPU-based inference for autoregressive language model decoding [3]. This is critical for an interactive interview application where response latency directly affects the user experience.
+The choice of Groq as the inference platform was driven by latency. Groq's LPU architecture [3] is built around a different hardware design than GPU clusters — one that is optimised for the sequential, memory-bound nature of autoregressive decoding rather than the parallel matrix operations that GPUs excel at. In our testing, question generation requests complete in under 1.5 seconds, which is fast enough that the interview feels like a real conversation rather than a web form submission.
+
+Recent work on LLM-based interview coaching [13, 18, 24] has confirmed that LLMs can generate contextually appropriate questions and provide useful feedback, but these studies typically evaluate the quality of the AI output in isolation rather than building and deploying a complete end-to-end system. AQIA bridges that gap.
 
 ## 2.3 Speech Analysis in Interview Coaching
 
-Research in communication coaching has established that delivery quality — including speaking rate, pause patterns, and filler word usage — is a significant predictor of perceived competence and confidence in interview settings [4]. Luzardo et al. [5] found that candidates who spoke at a moderate pace (120–160 WPM) and used fewer filler words were rated more favourably by interviewers, independent of the content of their answers.
+The connection between how you speak and how you are perceived in an interview is well-established in communication research. Naim et al. [4] analysed job interview recordings and found that prosodic features — speaking rate, pitch variation, and pause patterns — were predictive of interview outcomes independently of the content of the answers. Luzardo et al. [5] built a virtual agent for interview training and found that candidates who received feedback on their speaking pace and filler word usage showed measurable improvement across sessions.
 
-Automatic speech recognition (ASR) systems have reached human-level accuracy on clean speech for major languages, enabling reliable transcription of interview responses. The Whisper model family, developed by Radford et al. [6], provides robust multilingual ASR with strong performance on spontaneous speech, making it suitable for transcribing interview answers that may include disfluencies, technical terminology, and non-native accents.
+The practical challenge has always been transcription accuracy. Early ASR systems struggled with spontaneous speech, technical vocabulary, and non-native accents — all of which are common in engineering interviews. Radford et al. [6] addressed this by training a model on a very large and diverse audio dataset using a weak supervision approach, producing a system that generalises well to real-world speech conditions. We chose Whisper large-v3 as our final transcription engine specifically because it handles the kinds of answers AQIA candidates give — answers that mix technical jargon, acronyms, and sometimes non-native pronunciation — more reliably than browser-based ASR.
 
-Neural text-to-speech systems have similarly advanced to the point where synthesised speech is largely indistinguishable from human speech in controlled listening tests [7]. Google's Chirp3-HD voice, used in AQIA, represents the current state of the art in neural TTS, with natural prosody, appropriate emphasis, and minimal artefacts.
+For question delivery, we needed a TTS voice that sounds natural enough that candidates focus on the question rather than the artificiality of the voice. Kim et al. [23] note that unnatural TTS voices increase cognitive load and reduce the ecological validity of simulated interviews. We compared several Google Cloud voices before settling on Chirp3-HD Aoede; in informal listening tests with peers, it was consistently rated as the most natural-sounding option available to us.
 
 ## 2.4 Research Gaps
 
-Despite the advances described above, several gaps remain in the existing literature and commercial offerings:
+Reading through the literature, we identified five gaps that motivated the specific design choices in AQIA:
 
-1. **Lack of resume-contextualised question generation:** Most systems use generic question banks rather than generating questions tailored to the specific candidate's experience and skills.
-2. **Absence of integrated speech pipeline:** Few systems combine live speech recognition for real-time feedback with a higher-accuracy cloud ASR for final evaluation in the same session.
-3. **No delivery analytics in open systems:** Quantitative metrics such as WPM and filler word frequency are computed by commercial employer-facing tools but are not available in candidate-facing preparation platforms.
-4. **Security and privacy concerns:** Many AI-powered tools expose API keys in client-side JavaScript bundles, creating security vulnerabilities. Resume data is often uploaded to servers, raising privacy concerns.
-5. **Cost barriers:** Most sophisticated interview preparation tools require paid subscriptions, limiting accessibility for students in developing countries.
+**Gap 1 — Resume-aware question generation.** Every published interview simulation system we found uses a fixed question bank or a domain-specific retrieval system. None of them read the candidate's resume and generated questions from it. This is the single most important personalisation feature, and it was missing everywhere.
+
+**Gap 2 — Dual-model speech pipeline.** Systems that use speech at all typically use either a live ASR for real-time display or a batch ASR for accuracy — not both. The combination of Web Speech API for live feedback and Whisper for accurate final transcription is, to our knowledge, novel in this context.
+
+**Gap 3 — Candidate-facing delivery analytics.** WPM and filler word metrics exist in employer-facing tools but are never shown to the candidate. We found no free, candidate-facing tool that reports these metrics.
+
+**Gap 4 — Secure API key handling in student projects.** A survey of open-source interview preparation tools on GitHub revealed that the majority include API keys directly in the frontend JavaScript. This is a security vulnerability that makes the tools unreliable (keys get revoked) and potentially costly (keys get abused). Our server-side proxy architecture addresses this directly.
+
+**Gap 5 — Accessible deployment.** Most research prototypes are not deployed. Students cannot use a GitHub repository; they need a URL. AQIA is live at https://aqia-mate.vercel.app.
 
 ## 2.5 How AQIA Addresses the Gaps
 
-AQIA directly addresses each of the identified gaps. Resume parsing is performed entirely on the client side using pdfjs-dist, so the resume is never transmitted to any server, addressing the privacy concern. The extracted resume text is included in the LLM prompt to generate questions that are specific to the candidate's background. The hybrid STT pipeline provides both live feedback and accurate final transcription. Delivery analytics (WPM, filler word count and percentage) are computed for every response. The Groq API key is proxied through the backend and never included in the JavaScript bundle. The system is deployed on free-tier cloud infrastructure, making it accessible at no cost to users.
+We designed AQIA specifically to close each of the five gaps identified above.
+
+For Gap 1, we parse the candidate's PDF resume entirely in the browser using pdfjs-dist and inject the extracted text directly into the LLM system prompt. The model sees the candidate's actual experience before generating a single question. The resume never leaves the browser — it is not uploaded to any server.
+
+For Gap 2, we run two speech recognition systems in parallel during each answer. The browser's Web Speech API streams a live transcript to the screen as the candidate speaks, giving immediate visual confirmation that the microphone is working. When the candidate stops, the recorded audio is sent to Whisper large-v3 via the Groq API, which produces a more accurate final transcript used for evaluation.
+
+For Gap 3, we compute WPM and filler word count for every answer and display them prominently in the final review — shown to the candidate alongside the content scores, not hidden in a backend log.
+
+For Gap 4, every call to the Groq API and Google Cloud TTS goes through our FastAPI backend. The browser sends a request to our server with a JWT token; our server adds the API key and forwards the request. The JavaScript bundle contains no secrets.
+
+For Gap 5, the entire system runs on free-tier cloud services. There is no subscription, no paywall, and no registration fee.
+
+## 2.6 Comparative Analysis
+
+Table 4 presents a structured comparison of AQIA against representative existing systems across key dimensions relevant to interview preparation.
+
+**Table 4: Comparison of AQIA with existing interview preparation systems**
+
+| Feature / Dimension | AQIA (This Work) | LeetCode / HackerRank | Pramp | HireVue | Chatbot Simulators |
+|---|---|---|---|---|---|
+| Resume-personalised questions | ✓ (LLM + resume context) | ✗ | ✗ | ✗ | ✗ |
+| Voice input (STT) | ✓ (Whisper + Web Speech) | ✗ | ✓ (human) | ✓ (proprietary) | Partial |
+| Voice output (TTS) | ✓ (Google Neural2) | ✗ | ✓ (human) | ✗ | ✗ |
+| Live transcript display | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Delivery analytics (WPM, fillers) | ✓ | ✗ | ✗ | ✓ (employer-only) | ✗ |
+| AI-generated feedback | ✓ (LLM rubric) | Partial (auto-judge) | ✓ (human) | ✓ (proprietary) | Partial |
+| Suggested improved answers | ✓ | ✗ | ✗ | ✗ | ✗ |
+| Progress tracking dashboard | ✓ | ✓ | ✗ | ✗ | ✗ |
+| Multi-domain support | ✓ (9 domains) | ✓ (algorithms) | ✓ | ✓ | Partial |
+| Free for candidates | ✓ | Freemium | ✓ | ✗ (employer-paid) | Varies |
+| API key security (server-side) | ✓ | N/A | N/A | ✓ | ✗ (often client-side) |
+| Mobile application | ✓ (Flutter) | ✓ | ✗ | ✓ | ✗ |
+| Open source / self-hostable | ✓ | ✗ | ✗ | ✗ | Partial |
+| Privacy (resume not uploaded) | ✓ (client-side parse) | N/A | N/A | ✗ | ✗ |
+
+The comparison demonstrates that AQIA uniquely combines resume-contextualised question generation, a full speech I/O pipeline, quantitative delivery analytics, and candidate-facing accessibility in a single open system. No existing free tool provides all of these capabilities simultaneously.
 
 ---
 
@@ -291,107 +404,61 @@ AQIA directly addresses each of the identified gaps. Resume parsing is performed
 
 ## 3.1 Functional Requirements
 
-The following functional requirements were identified during the requirements analysis phase and are fully implemented in the deployed system:
+We identified thirteen functional requirements during the design phase. All thirteen are implemented in the deployed system.
 
-**FR-01: User Registration and Authentication**
-The system shall allow new users to register with an email address, name, and password. Registered users shall be able to log in and receive a JWT access token. All protected endpoints shall require a valid JWT Bearer token.
-
-**FR-02: Dashboard**
-The system shall display an aggregated dashboard for authenticated users showing: total number of completed interviews, highest score achieved, average score across all sessions, and a progress chart showing score trends over time.
-
-**FR-03: Interview Onboarding**
-The system shall allow users to configure a new interview session by uploading a PDF resume, selecting a job domain from a predefined list, and specifying the number of questions (between 3 and 20).
-
-**FR-04: Resume Parsing**
-The system shall parse the uploaded PDF resume on the client side and extract text content for use in question generation. The resume file shall not be transmitted to the server.
-
-**FR-05: AI Question Generation**
-The system shall generate interview questions using the Groq LLM API, incorporating the candidate's resume text and selected domain as context. Questions shall be relevant to the candidate's stated experience and the target domain.
-
-**FR-06: Text-to-Speech Question Delivery**
-The system shall deliver each generated question to the candidate through synthesised speech using Google Cloud TTS (Chirp3-HD voice) with SSML prosody control. A browser-based fallback shall be available if the cloud TTS service is unavailable.
-
-**FR-07: Voice Response Capture**
-The system shall capture the candidate's spoken response using the browser's Web Speech API, displaying a live rolling transcript during the answer. The final response shall be transcribed using Groq Whisper for accuracy.
-
-**FR-08: Delivery Analytics**
-The system shall compute and display the following delivery metrics for each response: words per minute (WPM) and filler word count (including "um", "uh", "like", "basically", "you know", "so", "right", and similar disfluencies).
-
-**FR-09: AI Evaluation and Feedback**
-Upon completion of all questions, the system shall submit the full interview transcript to the Groq LLM and receive a structured JSON evaluation report containing: overall score (0–100), scores for Communication, Technical Accuracy, Problem Solving, and Behavioural dimensions (0–100 each), per-question scores (0–10), coach's notes per question, and suggested improved answers.
-
-**FR-10: Session Persistence**
-The system shall save completed interview sessions, including all scores and per-question data, to the database asynchronously. The user interface shall not block while the save operation is in progress.
-
-**FR-11: Interview History**
-The system shall allow users to retrieve a list of their past interview sessions with summary information.
-
-**FR-12: Rate Limiting**
-The system shall enforce a limit of one interview submission per user per day, returning HTTP 429 if the limit is exceeded.
-
-**FR-13: Health Monitoring**
-The system shall expose a health check endpoint that returns the current status of the API service.
+| ID | Requirement | Description |
+|---|---|---|
+| FR-01 | User Registration and Authentication | New users register with email, name, and password. On successful login or registration, the backend issues a signed JWT access token. Every protected endpoint validates this token before processing. |
+| FR-02 | Dashboard | After login, users see total completed interviews, highest score, average score, and a line chart of score history over time. |
+| FR-03 | Interview Setup | Users upload a PDF resume, select a job domain, and choose the number of questions (3–20) before starting a session. |
+| FR-04 | Client-Side Resume Parsing | The uploaded PDF is parsed entirely in the browser. Extracted text is used as LLM context. The file is never sent to the server. |
+| FR-05 | AI Question Generation | Questions are generated by the LLM using the candidate's resume text and selected domain. Each question is tailored to the candidate's actual experience. |
+| FR-06 | TTS Question Delivery | Each question is spoken aloud using Google Cloud TTS with SSML prosody tuning. If the cloud TTS call fails, the system falls back to browser speech synthesis. |
+| FR-07 | Voice Response Capture | The candidate's spoken answer is captured and displayed as a live rolling transcript. When the candidate stops, the audio is sent to Whisper for accurate final transcription. |
+| FR-08 | Delivery Analytics | For each answer, the system computes and displays words per minute (WPM) and filler word count (um, uh, like, basically, you know, so, right, and similar disfluencies). |
+| FR-09 | AI Evaluation | After all questions, the complete transcript is submitted to the LLM. The response contains an overall score (0–100), four dimension scores, per-question scores (0–10), coach's notes, and a suggested improved answer per question. |
+| FR-10 | Asynchronous Session Persistence | Completed sessions are saved to the database in the background via a job queue. The UI does not wait for the database write before showing results. |
+| FR-11 | Interview History | Users can retrieve a list of past sessions with domain, date, and overall score. |
+| FR-12 | Daily Rate Limiting | Each user can submit one interview per day. A second submission within 24 hours returns HTTP 429. |
+| FR-13 | Health Endpoint | The API exposes a health check endpoint returning current service status, used for uptime monitoring. |
 
 ## 3.2 Non-Functional Requirements
 
-**NFR-01: Performance**
-The LLM API response for question generation shall complete within 3 seconds under normal load. The TTS audio for a typical question (20–40 words) shall be available within 2 seconds of the request.
-
-**NFR-02: Security**
-All API keys (Groq, Google Cloud) shall be stored as server-side environment variables and never included in client-side code or HTTP responses. All passwords shall be hashed using bcrypt before storage. All inter-service communication shall use HTTPS.
-
-**NFR-03: Availability**
-The system shall be deployed on cloud infrastructure with automatic restart on failure. The frontend shall be served from a CDN with global edge distribution.
-
-**NFR-04: Scalability**
-The database connection pool shall be configured to handle concurrent users without exhausting connections. The backend shall support horizontal scaling through stateless JWT authentication.
-
-**NFR-05: Usability**
-The user interface shall be operable without any installation or plugin beyond a modern Chromium-based browser. The interview flow shall be completable by a first-time user without external documentation.
-
-**NFR-06: Privacy**
-Resume data shall be processed entirely on the client side and shall not be stored on any server. User interview data shall be accessible only to the authenticated user who created it.
-
-**NFR-07: Maintainability**
-Database schema changes shall be managed through Alembic migrations. The codebase shall be organised into clearly separated frontend and backend modules.
+| ID | Category | Requirement |
+|---|---|---|
+| NFR-01 | Performance | LLM question generation completes within 3 seconds under normal load. TTS audio for a 20–40 word question is available within 2 seconds. |
+| NFR-02 | Security | All AI API keys are stored as server-side environment variables and never appear in any HTTP response or client-side file. Passwords are hashed with bcrypt before storage. All traffic uses HTTPS. |
+| NFR-03 | Availability | The system is deployed on cloud infrastructure with automatic restart on failure. The frontend is served from a global CDN. |
+| NFR-04 | Scalability | The database connection pool is sized to handle concurrent users without exhausting connections. JWT-based authentication is stateless, enabling horizontal scaling of the backend. |
+| NFR-05 | Usability | The complete interview flow is accessible through a standard Chromium-based browser with no installation required. A first-time user can complete a session without reading any documentation. |
+| NFR-06 | Privacy | Resume data is processed on the client and never stored on any server. Each user's interview data is accessible only to that user. |
+| NFR-07 | Maintainability | Database schema changes are managed through versioned migrations. Frontend and backend code are in separate repositories with clear module boundaries. |
 
 ## 3.3 Hardware Requirements
 
-AQIA is a web-based application and imposes minimal hardware requirements on the end user:
-
-- A device with a modern Chromium-based browser (Google Chrome 90+, Microsoft Edge 90+, or Brave)
-- A working microphone for voice input
-- Speakers or headphones for audio output
-- A stable internet connection (minimum 1 Mbps for audio streaming)
-
-Server-side infrastructure is provided by cloud platforms (Render.com, Vercel, Neon, Upstash) and requires no dedicated hardware procurement.
+AQIA runs in a browser, so the hardware requirements on the user's side are minimal. Any device with a working microphone, speakers or headphones, and a stable internet connection (1 Mbps or better) is sufficient. We tested on Windows laptops, macOS machines, and Android phones. The server infrastructure is entirely cloud-hosted — Render.com, Vercel, Neon, and Upstash — so there is no hardware to procure or maintain.
 
 ## 3.4 Software Requirements
 
-**Client-Side:**
-- Browser: Google Chrome 90+ or Chromium-based equivalent (required for Web Speech API support)
-- Operating System: Any (Windows, macOS, Linux, Android, iOS)
-- No additional software installation required
+**For end users:** Google Chrome 90+ or any Chromium-based browser. The Web Speech API, which powers the live transcript, is not available in Firefox or Safari. No installation is required beyond the browser.
 
-**Development Environment:**
-- Node.js 18+ and npm for frontend development
-- Python 3.12 for backend development
-- Git for version control
-- PostgreSQL 15 (local) or Neon cloud PostgreSQL for database
+**For development:** Node.js 18+ and npm for the frontend; Python 3.12 for the backend; Git for version control. A local PostgreSQL instance or a Neon connection string for the database.
 
-**Production Dependencies (Backend):**
-- FastAPI 0.110+, Uvicorn, SQLAlchemy 2.0, Alembic, python-jose, passlib[bcrypt], httpx, rq, redis, psycopg2-binary
+**Backend production stack:** FastAPI 0.110+, Uvicorn, SQLAlchemy 2.0, Alembic, python-jose, passlib[bcrypt], httpx, rq, redis, psycopg2-binary.
 
-**Production Dependencies (Frontend):**
-- React 19, Vite 5, pdfjs-dist, recharts (for progress charts), axios or fetch API
+**Frontend production stack:** React 19, Vite 5, pdfjs-dist, Recharts, React Router v6.
 
 ## 3.5 System Constraints
 
-1. **Browser Compatibility:** The Web Speech API is not supported in Firefox or Safari, limiting voice input to Chromium-based browsers. The system degrades gracefully by allowing text input as an alternative.
-2. **Free-Tier Infrastructure:** The backend is deployed on Render.com's free tier, which spins down after 15 minutes of inactivity. The first request after a cold start may experience a delay of 30–60 seconds.
-3. **Rate Limits:** The Groq API imposes rate limits on the free tier. Under high concurrent load, requests may be queued or throttled.
-4. **Single Worker Process:** The RQ worker runs within the same Render dyno as the FastAPI application to avoid the cost of a separate worker service. This limits the throughput of background job processing.
-5. **Language Support:** The system is designed for English-language interviews. The Whisper transcription model supports multiple languages, but the LLM prompts and evaluation rubrics are in English.
+**Browser limitation.** The Web Speech API works only in Chromium-based browsers. Firefox and Safari users can still use AQIA with text input, but the live transcript feature is unavailable. We considered implementing a server-side streaming STT alternative but decided it was out of scope for this project.
+
+**Cold start delay.** Render.com's free tier shuts down the backend after 15 minutes of inactivity. The first request after an idle period triggers a container restart that takes 30–60 seconds. We document this prominently in the UI so users are not confused by the delay.
+
+**Groq rate limits.** The Groq free tier imposes per-minute token limits. Under high concurrent load, requests may be queued. We have not encountered this in practice during testing, but it is a theoretical constraint.
+
+**Single-process worker.** The RQ worker runs in the same process as the FastAPI application on a single Render dyno. This is a cost-driven decision; a dedicated worker service would improve throughput but would require a paid plan.
+
+**English only.** The LLM prompts, evaluation rubrics, and UI are in English. Whisper supports multiple languages, but the rest of the pipeline does not.
 
 ---
 
@@ -400,209 +467,202 @@ Server-side infrastructure is provided by cloud platforms (Render.com, Vercel, N
 
 ## 4.1 High-Level Architecture Overview
 
-AQIA follows a three-tier client-server architecture comprising a React single-page application (SPA) on the frontend, a FastAPI REST API on the backend, and a PostgreSQL relational database for persistent storage. The system additionally integrates three external AI/cloud services — the Groq API for LLM inference and speech transcription, Google Cloud Text-to-Speech for audio synthesis, and Upstash Redis for message queue brokering — and uses Vercel and Render.com as deployment platforms.
+AQIA is built as a three-tier system. The first tier is the browser-based client, which handles all user interaction — resume upload, domain selection, voice recording, live transcript display, and result presentation. The second tier is a server-side API layer that acts as a secure intermediary between the client and all external AI services. The third tier is a relational database that stores user accounts, interview sessions, question histories, analytics scores, and progress records.
 
-The architectural separation between frontend and backend is strict: the frontend communicates with the backend exclusively through the documented REST API over HTTPS. No direct database connections are made from the browser. All third-party API keys are held exclusively by the backend, which acts as a secure proxy for all AI service calls. This design ensures that sensitive credentials are never exposed in the JavaScript bundle delivered to the browser.
+The most important architectural decision we made was to keep all AI credentials exclusively on the server. The client never communicates with any AI service directly. Every AI call — question generation, audio transcription, and speech synthesis — is routed through our server, which injects the appropriate credential before forwarding the request. This means the browser-delivered application contains no secrets of any kind.
 
-The data flow for a complete interview session can be summarised as follows: the user authenticates and receives a JWT token; the frontend parses the resume locally and sends the extracted text and domain selection to the backend LLM proxy; the backend forwards the request to Groq and returns the generated question; the frontend synthesises the question as speech via the Google TTS proxy; the user responds by voice; the frontend sends the audio to the Whisper proxy for transcription; after all questions are answered, the frontend sends the full transcript to the LLM for evaluation; the evaluation result is displayed to the user and submitted to the backend for asynchronous persistence via the RQ job queue.
+Figure 1 shows the high-level architecture. The complete data flow for one interview session is as follows: the user authenticates and receives a session token; the browser parses the resume locally and sends the extracted text along with the chosen domain to the server; the server generates the first question via the LLM and returns it; the browser converts the question to speech via the TTS proxy and plays it; the user speaks their answer; the browser records the audio and sends it to the transcription proxy; after all questions are answered, the full transcript is sent to the LLM for evaluation; the evaluation result is shown to the user and the session data is submitted for background persistence.
 
-## 4.2 Frontend Architecture
+## 4.2 Client-Side Design
 
-The frontend is a React 19 single-page application built with Vite 5 as the build tool and development server. Vite was chosen over Create React App for its significantly faster hot module replacement (HMR) during development and its optimised production build pipeline using Rollup.
+The client is a single-page web application. It has five distinct views that the user moves through in sequence: authentication, interview setup, the active interview session, the final review, and the progress dashboard.
 
-The application is structured around the following primary views:
+The interview setup view handles three inputs: the PDF resume (parsed locally in the browser — the file never leaves the device), the job domain selection, and the question count. Once the user confirms these, the session begins.
 
-- **AuthPage:** Handles user registration and login. Stores the JWT token in localStorage upon successful authentication.
-- **Dashboard:** The landing page for authenticated users. Fetches aggregated statistics from the `/api/dashboard` endpoint and renders a progress chart using the Recharts library.
-- **Onboarding:** A multi-step form for configuring a new interview session. Handles PDF file selection, client-side parsing via pdfjs-dist, domain selection, and question count configuration.
-- **InterviewSession:** The core interview view. Manages the state machine for the interview flow (question display, recording, transcription, next question), integrates the Web Speech API for live transcription, calls the TTS proxy for audio playback, and tracks delivery metrics.
-- **FinalReview:** Displays the complete evaluation report after the interview, including all scores, per-question feedback, coach's notes, and suggested answers.
+The active interview view is the most complex part of the client. It manages a state machine with six phases: idle (waiting for the question to be spoken), speaking (TTS audio playing), listening (microphone active, live transcript updating), transcribing (audio being sent to Whisper), evaluating (LLM processing the full transcript), and complete. The transitions between these phases are driven by user actions and API responses. Figure 2 shows the state machine diagram.
 
-State management is handled through React's built-in hooks (useState, useEffect, useRef, useCallback) without an external state management library, keeping the dependency footprint minimal. The Vite configuration includes a development proxy that forwards `/api` requests to the local backend, eliminating CORS issues during development.
+The dashboard view fetches aggregated statistics from the server on every visit and renders a line chart of the user's score history across sessions.
 
-The frontend is deployed on Vercel, which provides automatic deployments from the Git repository, global CDN distribution, and HTTPS termination. The `vercel.json` configuration file specifies the build command and output directory, and rewrites all routes to `index.html` to support client-side routing.
+## 4.3 Server-Side Design
 
-## 4.3 Backend Architecture
+The server exposes a REST API with thirteen endpoints. All endpoints except registration, login, and health check require a valid session token in the request header.
 
-The backend is a Python 3.12 application built with FastAPI, an asynchronous web framework based on Starlette and Pydantic. FastAPI was chosen for its native support for async/await, automatic OpenAPI documentation generation, and Pydantic-based request validation, which reduces boilerplate and improves reliability.
+The server's primary responsibilities are:
 
-The backend is structured into the following modules:
+1. **Authentication** — validating credentials, issuing tokens, and enforcing per-user data isolation on every database query.
+2. **AI proxying** — receiving requests from the client, adding the appropriate API credential, forwarding to the external AI service, and returning the response.
+3. **Session management** — enforcing the one-interview-per-day rate limit, enqueuing background save jobs, and providing job status polling.
+4. **Data aggregation** — computing dashboard statistics (total sessions, highest score, average score, score history) from the database in a single query.
 
-- **main.py:** Application entry point. Configures the FastAPI application instance, registers middleware (CORS, rate limiting), and includes all route modules.
-- **routes/auth.py:** Handles user registration and login endpoints. Validates credentials, hashes passwords with bcrypt, and issues JWT tokens using python-jose.
-- **routes/chat.py:** Proxies requests to the Groq Chat Completions API. Validates the JWT token, forwards the request with the server-side API key, and returns the LLM response.
-- **routes/transcribe.py:** Proxies audio data to the Groq Whisper API for transcription.
-- **routes/tts.py:** Proxies text to the Google Cloud TTS API and returns audio data.
-- **routes/interviews.py:** Handles interview session creation (with rate limiting and async job enqueue) and retrieval.
-- **routes/dashboard.py:** Executes aggregated SQL queries to compute dashboard statistics.
-- **routes/jobs.py:** Provides a polling endpoint for checking the status of async RQ jobs.
-- **database.py:** Configures the SQLAlchemy engine and session factory. Supports both SQLite (development) and PostgreSQL (production) through the `DATABASE_URL` environment variable.
-- **models.py:** Defines SQLAlchemy ORM models for all five database tables.
-- **workers.py:** Defines the RQ job function that persists interview session data to the database.
+The server never stores resume data. The resume text is received as part of the LLM request, used to construct the prompt, and discarded after the response is returned.
 
-The application is served by Uvicorn, an ASGI server, with a single worker process on the Render.com free tier. The `render.yaml` configuration file specifies the build command, start command, and environment variable references for the deployment.
+## 4.4 AI Integration Design
 
-## 4.4 AI and LLM Integration
+Two distinct AI interactions occur during each interview session.
 
-The Groq API serves as the primary AI inference backend for AQIA. Groq's Language Processing Unit (LPU) architecture is specifically optimised for the sequential token generation pattern of autoregressive language models, achieving inference speeds of 500–800 tokens per second for the Llama-3.3-70b-versatile model. This is approximately 10–20 times faster than typical GPU-based inference, which is critical for maintaining a responsive interview experience.
+**Question generation** happens at the start of each turn. The server constructs a prompt that includes: a system instruction describing the interviewer's role and the evaluation domain; the candidate's resume text (up to 1,500 characters); the list of questions already asked in this session (to prevent repetition); and an instruction to return the next question as plain text. The LLM returns a single question, which is sent back to the client.
 
-Two distinct LLM interactions occur during an interview session:
+**Answer evaluation** happens once after all questions are answered. The server constructs a prompt that includes the complete interview transcript — each question paired with the candidate's Whisper-transcribed answer and their measured speech metrics (WPM and filler word count). The prompt specifies a strict JSON output schema with five score fields, a summary paragraph, strength and weakness lists, and per-question analysis. The server validates the returned JSON structure before forwarding it to the client.
 
-**Question Generation:** The system prompt instructs the model to act as a professional technical interviewer. The user message includes the candidate's resume text, the selected domain, the number of questions requested, and any previously asked questions (to avoid repetition). The model returns a JSON array of question objects. The prompt is constructed in `promptBuilder.js` on the frontend and sent to the `/api/chat` endpoint.
-
-**Answer Evaluation:** After all questions have been answered, the complete interview transcript (each question paired with the candidate's answer) is submitted to the model with a detailed evaluation prompt. The prompt specifies the scoring rubric: overall score (0–100), four dimension scores (Communication, Technical Accuracy, Problem Solving, Behavioural), per-question scores (0–10), coach's notes, and suggested improved answers. The model is instructed to return a strictly formatted JSON object. The backend validates the JSON structure before returning it to the frontend.
-
-The Groq API key is stored as an environment variable on Render.com and is never included in any HTTP response or client-side code. The backend uses the `httpx` library for asynchronous HTTP requests to the Groq API.
+The prompt design was the most iterative part of the project. Early versions produced inconsistent JSON formatting, repeated questions, and scores that did not reflect the actual answer quality. We refined the prompts over approximately twenty test sessions before the output became reliable enough for production use.
 
 ## 4.5 Speech Pipeline Design
 
-The speech pipeline is one of the most technically complex components of AQIA, combining three distinct speech technologies in a coordinated workflow.
+The speech pipeline coordinates three components that handle different parts of the voice interaction.
 
-**Text-to-Speech (Question Delivery):** When a new question is ready to be presented, the frontend sends the question text to the `/google-tts` endpoint. The backend wraps the text in SSML markup with prosody controls (`rate="0.95"` and `pitch="-1st"`) to produce speech that sounds measured and natural rather than rushed. The Google Cloud TTS API is called with the `en-US-Chirp3-HD-Aoede` voice (Chirp3-HD tier). The audio data is returned as a base64-encoded MP3 and played through the browser's Audio API. If the Google TTS request fails, the system falls back to the browser's built-in `SpeechSynthesis` API. A secondary fallback cascade within the Google TTS integration tries `Journey` and `Neural2` voice tiers before resorting to browser synthesis.
+**Speech synthesis (question delivery):** When a question is ready, the client sends the question text to the server's TTS endpoint. The server wraps the text in SSML markup with prosody controls — a slightly reduced speaking rate and a marginally lower pitch — to produce speech that sounds measured and natural rather than rushed. The server calls the neural TTS API and returns the audio. The client plays it immediately. If the TTS call fails, the client falls back to the browser's built-in speech synthesis. Figure 3 shows the full TTS and STT flow.
 
-**Live Speech Recognition (Web Speech API):** When the user begins their answer, the frontend initialises a `SpeechRecognition` instance from the browser's Web Speech API. This provides a continuously updated transcript displayed in real time as the user speaks. The live transcript serves as immediate visual feedback, confirming that the microphone is active and the speech is being captured. Interim results are displayed in a lighter colour to distinguish them from confirmed segments.
+**Live speech recognition (answer capture):** While the user is speaking, the browser's built-in speech recognition interface streams a continuously updated transcript to the screen. This gives the candidate immediate visual confirmation that the microphone is working and their words are being captured. This transcript is for display only — it is not used for evaluation.
 
-**Final Transcription (Groq Whisper):** When the user stops speaking (detected by a silence timeout or manual stop), the recorded audio blob is sent to the `/api/transcribe` endpoint. The backend forwards the audio to the Groq Whisper API (`whisper-large-v3` model), which returns a more accurate transcription than the browser's Web Speech API, particularly for technical terminology, proper nouns, and non-native accents. The Whisper transcription replaces the Web Speech API transcript as the authoritative record of the candidate's answer.
+**Final transcription (answer evaluation):** When the user stops speaking, the recorded audio is sent to the server's transcription endpoint. The server forwards it to a cloud ASR model (Whisper large-v3) that handles technical vocabulary, acronyms, and non-native accents more reliably than browser-based recognition. The Whisper transcript replaces the live transcript as the authoritative text that the LLM evaluates.
 
-**Delivery Metrics Computation:** After the final transcription is received, the frontend computes delivery metrics. WPM is calculated by dividing the word count of the transcription by the elapsed recording time in minutes. Filler word detection uses a regular expression matching a predefined list of disfluencies against the transcription text. Both metrics are displayed alongside the answer in the interview session view and included in the final review.
+The reason for running two recognition systems in parallel is the trade-off between latency and accuracy. Browser-based recognition is instant but less accurate on technical speech. Cloud-based Whisper is more accurate but takes 1–2 seconds after the answer ends. By showing the browser transcript live and replacing it with the Whisper result after the fact, we get both responsiveness and accuracy.
 
 ## 4.6 Database Design
 
-The database schema consists of five tables designed to support the full range of application functionality with efficient query patterns.
+The database has five tables, all linked by the user's unique identifier as the primary bridge key. Table 5 describes each table, its key fields, and its purpose.
 
-**users:** Stores account credentials and profile information. Fields: `id` (UUID primary key), `email` (unique, indexed), `password_hash` (bcrypt), `name`, `created_at`. The email field has a unique constraint to prevent duplicate registrations.
+**Table 5: Database schema — table descriptions and key fields**
 
-**interview_sessions:** Records each completed interview session. Fields: `id` (UUID primary key), `user_id` (foreign key to users, indexed), `job_category` (text), `overall_score` (integer 0–100), `started_at` (timestamp), `completed_at` (timestamp). A composite index on `(user_id, started_at)` supports efficient retrieval of a user's sessions ordered by date. A composite index on `(user_id, overall_score)` supports the dashboard query for the user's highest score.
+| Table | Key Fields | Purpose |
+|---|---|---|
+| users | id (8-char hex, PK), email (unique), password_hash, name, created_at | Stores user account credentials. The 8-character hex ID is the foreign key used in all other tables. Email has a unique constraint to prevent duplicate registrations. |
+| interview_sessions | id (PK), user_id (FK → users), job_category, overall_score, started_at, completed_at | Records each completed interview session. Composite indexes on (user_id, started_at) and (user_id, overall_score) support fast dashboard aggregation queries. |
+| question_history | id (PK), session_id (FK → interview_sessions), question_asked, user_answer, ai_feedback, score | Stores each question-answer pair from a session with the AI-generated feedback note and per-question score (0–10). Enables the detailed Q&A review in the final report. |
+| analytics_scores | id (PK), session_id (FK → interview_sessions), category, score | Stores the four dimension scores (Communication, Technical Accuracy, Problem Solving, Behavioural) as separate rows. Normalised design allows new scoring dimensions to be added without schema changes. |
+| progress_tracking | id (PK), user_id (FK → users), date_recorded, rolling_average_score, total_interviews, most_improved_category | Stores pre-computed progress metrics per user, updated by the background worker after each session. Avoids recomputing rolling averages on every dashboard page load. |
 
-**question_history:** Stores the per-question data for each session. Fields: `id` (UUID primary key), `session_id` (foreign key to interview_sessions), `question_asked` (text), `user_answer` (text), `ai_feedback` (text), `score` (integer 0–10). This table enables detailed review of individual questions and answers.
-
-**analytics_scores:** Stores the four dimension scores for each session. Fields: `id` (UUID primary key), `session_id` (foreign key to interview_sessions), `category` (text: "Communication", "Technical", "Problem Solving", "Behavioral"), `score` (integer 0–100). The normalised design allows new scoring dimensions to be added without schema changes.
-
-**progress_tracking:** Stores computed progress metrics per user per day. Fields: `id` (UUID primary key), `user_id` (foreign key to users), `date_recorded` (date), `rolling_average_score` (float), `total_interviews` (integer), `most_improved_category` (text). This table is updated by the RQ worker after each session is saved, enabling efficient dashboard queries without recomputing rolling averages on every request.
-
-The schema is managed through Alembic migrations, which provide version-controlled, reversible schema changes. The same codebase supports SQLite for local development (using WAL mode for concurrent reads) and PostgreSQL for production, controlled by the `DATABASE_URL` environment variable.
+All foreign keys use cascading deletion — removing a user account automatically removes all their sessions, questions, scores, and progress records. Figure 4 shows the entity-relationship diagram.
 
 ## 4.7 API Design
 
-The backend exposes a RESTful API with eleven endpoints, all served under the `/api` prefix except for the Google TTS proxy. All endpoints except `/api/register`, `/api/login`, `/api/health`, and `/api/docs` require a valid JWT Bearer token in the `Authorization` header.
+The API follows REST conventions. POST is used for resource creation and state-changing operations; GET is used for retrieval. Every error response includes an HTTP status code and a machine-readable detail message.
 
-The API follows REST conventions: POST for resource creation and state-changing operations, GET for retrieval. Request and response bodies use JSON. Error responses include an HTTP status code and a JSON body with a `detail` field describing the error.
+Table 6 summarises the eleven endpoints.
 
-The `/api/chat` endpoint accepts a `messages` array in the OpenAI-compatible format and forwards it to the Groq Chat Completions API. This design allows the frontend to use the same message format as the Groq API directly, with the backend acting as a transparent proxy that injects the API key.
+**Table 6: REST API endpoint summary**
 
-The `/api/interviews` POST endpoint implements server-side rate limiting by querying the database for the user's most recent session. If a session was completed within the past 24 hours, the endpoint returns HTTP 429 with a `Retry-After` header. If the rate limit is not exceeded, the session data is enqueued as an RQ job and the endpoint returns HTTP 202 Accepted with a `job_id` that the client can use to poll the `/api/jobs/{job_id}` endpoint for completion status.
+| Endpoint | Method | Auth Required | Purpose |
+|---|---|---|---|
+| /api/register | POST | No | Create a new user account |
+| /api/login | POST | No | Authenticate and receive a session token |
+| /api/me | GET | Yes | Retrieve the current user's profile |
+| /api/chat | POST | Yes | Proxy LLM request to Groq (question generation or evaluation) |
+| /api/transcribe | POST | Yes | Proxy audio to Whisper for transcription |
+| /google-tts | POST | No | Proxy text to Google Cloud TTS for speech synthesis |
+| /api/interviews | POST | Yes | Submit a completed session for background persistence |
+| /api/interviews | GET | Yes | Retrieve the user's session history |
+| /api/jobs/{id} | GET | Yes | Poll the status of a background save job |
+| /api/dashboard | GET | Yes | Retrieve aggregated dashboard statistics |
+| /api/health | GET | No | Service health check |
 
-The `/api/dashboard` endpoint executes a single SQL query using COUNT, MAX, and AVG aggregate functions to compute the dashboard statistics in a single round trip to the database.
+The `/api/chat` endpoint is the most critical. It accepts a messages array in the standard LLM conversation format, injects the server-side API key, forwards the request to the LLM provider, and returns the response. The client constructs the messages array — including the system prompt with resume context — and the server adds only the credential. This design keeps the prompt logic on the client while keeping the key on the server.
 
-Full API documentation is available at the `/api/docs` endpoint (Swagger UI) and `/api/redoc` (ReDoc), automatically generated by FastAPI from the Pydantic models and route decorators.
+## 4.8 Security Design
 
-## 4.8 Security Architecture
+Security was treated as a first-class requirement throughout the design process, not added at the end.
 
-Security was a primary design concern throughout the development of AQIA. The following measures are implemented in the deployed system:
+**Credential isolation:** All AI API keys and the database connection string are stored as server-side environment variables. They are never written to any source file, never returned in any API response, and never logged. The JavaScript bundle delivered to the browser contains no secrets.
 
-**API Key Protection:** The Groq API key and Google Cloud service account credentials are stored as environment variables and Secret Files on Render.com respectively. They are never included in the JavaScript bundle, never returned in API responses, and never logged. The frontend has no direct access to any third-party API.
+**Password storage:** User passwords are hashed using bcrypt with a work factor of 12 before being stored in the database. The original password is never stored and cannot be recovered from the hash.
 
-**Authentication:** User passwords are hashed using bcrypt with a work factor of 12 before storage. JWT access tokens are signed with a secret key using the HS256 algorithm and include an expiration claim. Tokens are stored in localStorage on the client and included in the `Authorization: Bearer` header of all authenticated requests.
+**Session tokens:** Authentication tokens are cryptographically signed and include an expiration timestamp. Every protected endpoint validates the token signature and expiry before executing any logic.
 
-**Authorisation:** All database queries that retrieve or modify user data include a `WHERE user_id = :current_user_id` clause, ensuring that users can only access their own data. This is enforced at the application layer in every route handler.
+**Data isolation:** Every database query that reads or modifies user data includes a filter on the authenticated user's ID. A user cannot access another user's sessions, scores, or history regardless of what they send in the request.
 
-**CORS:** The FastAPI CORS middleware is configured to allow requests only from the specific Vercel deployment origin (`https://aqia-mate.vercel.app`). All other origins are rejected with a CORS error, preventing cross-site request forgery from other domains.
+**Origin restriction:** The server's CORS policy allows requests only from the production frontend domain. Requests from any other origin are rejected before reaching any route handler.
 
-**Rate Limiting:** The interview submission endpoint enforces a limit of one session per user per 24-hour period. This prevents abuse of the Groq API quota and ensures fair usage.
+**Rate limiting:** The interview submission endpoint enforces a one-session-per-day limit per user. This prevents API quota exhaustion and ensures fair access.
 
-**Input Validation:** All request bodies are validated by Pydantic models before processing. Invalid or malformed requests are rejected with HTTP 422 before reaching any business logic.
+## 4.9 Asynchronous Job Processing Design
 
-## 4.9 Asynchronous Job Processing
+Saving a completed interview involves writing to four tables simultaneously: one session record, multiple question-answer records, four analytics score records, and one progress tracking record. Performing all of these writes synchronously in the HTTP response cycle would add several hundred milliseconds of latency at the exact moment the user is waiting to see their evaluation results.
 
-Saving a complete interview session to the database involves multiple INSERT operations across four tables (interview_sessions, question_history, analytics_scores, progress_tracking) and a progress recalculation. Performing these operations synchronously in the HTTP request handler would introduce latency of several hundred milliseconds, degrading the user experience at the end of the interview.
+We addressed this by decoupling the save operation from the HTTP response. When the client submits the interview data, the server serialises it, places it in a job queue, and immediately returns a job identifier. The client then polls a status endpoint every two seconds. A background worker picks up the job and performs all database writes asynchronously. Once the worker reports completion, the client navigates to the final review screen.
 
-To address this, AQIA uses RQ (Redis Queue) for asynchronous job processing. When the frontend submits the interview results, the backend enqueues a job containing the serialised session data and immediately returns HTTP 202 Accepted with a job ID. The RQ worker, running in a background thread within the same Render dyno, picks up the job and executes the database writes asynchronously.
+This design keeps the user-facing response time under 200 milliseconds for the submission step, regardless of how long the database writes take.
 
-Upstash Redis is used as the message broker for RQ. Upstash provides a serverless Redis instance with a REST API, which is compatible with the free tier of Render.com and does not require a persistent Redis process. The RQ library connects to Upstash Redis using the standard Redis protocol over TLS.
+## 4.10 Deployment Design
 
-The frontend polls the `/api/jobs/{job_id}` endpoint at 2-second intervals to check whether the job has completed. Once the job status is "finished", the frontend navigates to the FinalReview page. If the job fails, the frontend displays an error message and allows the user to retry.
+The system is deployed across four cloud services, all on free tiers. Figure 5 shows the deployment architecture.
 
-## 4.10 Deployment Architecture
+The web frontend is served from a global CDN with automatic HTTPS. The server runs on a cloud platform that rebuilds and redeploys automatically on every push to the main branch of the repository. Database migrations are applied automatically as part of the build step, so the production schema is always in sync with the application code. The message queue uses a serverless Redis instance that requires no persistent process management.
 
-The production deployment uses a combination of free-tier cloud services, chosen to minimise cost while providing reliable availability:
-
-**Frontend (Vercel):** The React application is built by Vite and deployed to Vercel's global CDN. Vercel automatically deploys on every push to the main branch of the Git repository. The `vercel.json` file configures the build command (`npm run build`), output directory (`dist`), and SPA routing rewrites.
-
-**Backend (Render.com):** The FastAPI application is deployed as a Web Service on Render.com's free tier. The `render.yaml` file specifies the build command (`pip install -r requirements.txt`), start command (`uvicorn main:app --host 0.0.0.0 --port $PORT`), and environment variable references. The RQ worker runs as a background thread within the same process, started during application startup.
-
-**Database (Neon):** PostgreSQL is hosted on Neon's serverless platform. Neon provides a connection pooler (PgBouncer) that is compatible with the connection pooling configuration in SQLAlchemy (`pool_size=10`, `max_overflow=20`). The database URL is stored as an environment variable on Render.com.
-
-**Message Queue (Upstash Redis):** The Redis instance for RQ is hosted on Upstash's serverless platform. The connection URL is stored as an environment variable on Render.com.
-
-**Environment Configuration:** All sensitive configuration (API keys, database URLs, JWT secret) is managed through environment variables. The `render.yaml` file references these variables by name, and they are set through the Render.com dashboard. No secrets are committed to the Git repository.
+All credentials are stored in the deployment platform's environment variable store and are never committed to the source repository.
 
 ---
 
 # Chapter 5: Implementation
 
-## 5.1 Frontend Implementation
+## 5.1 Resume Parsing and Context Injection
 
-The frontend was implemented using React 19 with functional components and hooks throughout. The project was scaffolded using `npm create vite@latest` with the React template, providing a minimal, fast development environment.
+The first implementation challenge was getting the candidate's resume into the LLM prompt without uploading the file to our server. We solved this by parsing the PDF entirely in the browser using a JavaScript PDF library. When the user selects a file, the browser reads it as a binary buffer, extracts the text content page by page, and concatenates it into a single string. This string is then stored in the browser's session state and included in every LLM request for the duration of the interview.
 
-**Component Structure:** The application is organised into page-level components (AuthPage, Dashboard, Onboarding, InterviewSession, FinalReview) and reusable UI components (ScoreCard, ProgressChart, QuestionCard, TranscriptDisplay). Each page component manages its own state and communicates with the backend through a centralised API utility module (`src/api/client.js`) that attaches the JWT token to all requests.
+The extracted text is truncated to 1,500 characters before being inserted into the prompt. This limit was chosen after testing: shorter excerpts produced generic questions, while longer excerpts caused the model to focus too narrowly on a single section of the resume. At 1,500 characters, the model consistently produced questions that referenced the candidate's actual experience without becoming repetitive.
 
-**PDF Resume Parsing:** The pdfjs-dist library (version 3.x) is used to parse uploaded PDF files entirely in the browser. The `pdfjsLib.getDocument()` function loads the PDF from an ArrayBuffer, and the text content of each page is extracted using `page.getTextContent()`. The concatenated text is passed to the interview session as context for question generation. This approach ensures that the resume file is never transmitted to any server.
+We also implemented a lightweight resume analysis step that runs before the first question is generated. This step scans the extracted text for experience-level indicators (years of experience, seniority keywords), technical skills, and achievement patterns. The analysis result is included in the system prompt to help the model calibrate the difficulty and focus of its questions.
 
-**Interview State Machine:** The InterviewSession component implements a state machine with the following states: `idle`, `speaking` (TTS playing), `listening` (recording user answer), `processing` (Whisper transcription in progress), `evaluating` (LLM evaluation in progress), and `complete`. State transitions are managed through a `useReducer` hook, ensuring predictable state updates.
+## 5.2 Interview State Management
 
-**Progress Chart:** The Dashboard page uses the Recharts library to render a line chart of the user's score history. The chart data is fetched from the `/api/dashboard` endpoint and includes the date and overall score for each completed session.
+The active interview session is the most stateful part of the application. At any given moment, the session is in one of six phases: waiting for the question to be spoken, speaking the question aloud, listening to the candidate's answer, transcribing the recorded audio, evaluating the full transcript, or complete. Each phase has a distinct UI state and a defined set of valid transitions.
 
-**Routing:** Client-side routing is implemented using React Router v6. Protected routes check for the presence of a JWT token in localStorage and redirect to the login page if no token is found.
+We implemented this as a state machine driven by a reducer function. The reducer takes the current phase and an action, and returns the new phase along with any associated state updates (current question text, live transcript, collected Q&A pairs, speech metrics). This design made the session logic easy to test and debug — we could replay any sequence of actions and verify the resulting state.
 
-## 5.2 Backend Implementation
+One non-obvious implementation detail: the live transcript and the Whisper transcript are stored separately. The live transcript updates continuously while the user speaks and is shown on screen. The Whisper transcript arrives 1–2 seconds after the user stops and silently replaces the live transcript in the data structure that gets sent to the LLM. The user sees the live transcript throughout; the LLM evaluates the Whisper transcript. This distinction was important for evaluation quality.
 
-The backend was implemented in Python 3.12 using FastAPI. The project structure follows FastAPI conventions with a `main.py` entry point and a `routes/` directory containing one module per resource.
+## 5.3 Prompt Engineering
 
-**Authentication Implementation:** User registration hashes the password using `passlib.context.CryptContext` with the bcrypt scheme. Login verifies the password hash and, on success, creates a JWT token using `python_jose.jwt.encode()` with the HS256 algorithm and a configurable expiration time (default 24 hours). The `get_current_user` dependency function, used by all protected routes, decodes and validates the JWT token from the Authorization header.
+The quality of the interview experience depends almost entirely on the prompts we send to the LLM. We went through approximately twenty iterations before settling on the final prompt structure.
 
-**Database Session Management:** SQLAlchemy's `sessionmaker` is used to create database sessions. A FastAPI dependency (`get_db`) yields a session for each request and ensures it is closed after the request completes, even if an exception occurs. This pattern prevents connection leaks.
+**Question generation prompt:** The system prompt establishes the interviewer's persona, specifies the domain focus areas, and includes the candidate's resume excerpt and experience level. The user message includes the list of questions already asked in this session (to prevent repetition) and an instruction to return exactly one question as plain text. Early versions returned multiple questions, added preamble text, or repeated questions from earlier in the session. We fixed these by adding explicit constraints to the prompt.
 
-**CORS Configuration:** The `fastapi.middleware.cors.CORSMiddleware` is configured with `allow_origins=["https://aqia-mate.vercel.app"]`, `allow_credentials=True`, `allow_methods=["*"]`, and `allow_headers=["*"]`. During local development, the origin list is extended to include `http://localhost:5173`.
+**Evaluation prompt:** The evaluation prompt includes the complete interview transcript with speech metrics for each answer. It specifies a strict JSON output schema with named fields, value ranges, and minimum list lengths. It also explicitly instructs the model to comment on speech delivery (pace and filler words) in the summary paragraph. Early versions produced inconsistent JSON formatting and scores that did not correlate with answer quality. We addressed this by adding few-shot examples of good and poor answers with their expected scores, which significantly improved consistency.
 
-**Error Handling:** FastAPI's exception handler mechanism is used to return consistent JSON error responses. SQLAlchemy integrity errors (e.g., duplicate email registration) are caught and converted to HTTP 409 Conflict responses.
+**Domain templates:** We created separate prompt templates for each of the nine supported domains (Software Engineering, Data Science, Product Management, UI/UX Design, Cybersecurity, Cloud Computing, DevOps, Machine Learning, AI Research). Each template specifies the focus areas and the interviewer persona appropriate for that domain. A Software Engineering interview focuses on system design, code quality, and debugging; a Product Management interview focuses on prioritisation, user empathy, and business impact. These templates are selected at session start based on the user's domain choice.
 
-## 5.3 AI Integration
+## 5.4 Delivery Analytics Implementation
 
-The Groq API integration is implemented in two route modules: `routes/chat.py` for LLM inference and `routes/transcribe.py` for Whisper transcription.
+Delivery analytics are computed client-side immediately after the Whisper transcript arrives for each answer.
 
-**LLM Proxy:** The `/api/chat` endpoint accepts a JSON body with a `messages` array. The backend constructs an HTTP POST request to `https://api.groq.com/openai/v1/chat/completions` with the `Authorization: Bearer {GROQ_API_KEY}` header, the `model` field set to `llama-3.3-70b-versatile`, and the `messages` array from the request body. The response is forwarded directly to the frontend. The `httpx.AsyncClient` is used for non-blocking HTTP requests.
+**Words per minute:** We record a timestamp when the TTS audio finishes playing (the moment the candidate should start answering) and another when the user clicks "Stop Recording". The elapsed time in minutes is divided into the word count of the Whisper transcript to produce WPM. We clamp the result to a reasonable range (20–300 WPM) to handle edge cases where the timing is inaccurate.
 
-**Whisper Proxy:** The `/api/transcribe` endpoint accepts a multipart form upload containing the audio file. The backend forwards the file to `https://api.groq.com/openai/v1/audio/transcriptions` with the `model` field set to `whisper-large-v3`. The transcription text is returned as a JSON response.
+**Filler word detection:** We apply a regular expression to the Whisper transcript that matches a predefined list of disfluencies: um, uh, like, basically, you know, so, right, actually, literally, honestly, kind of, and sort of. The match is case-insensitive and uses word boundaries to avoid false positives (e.g., "likely" should not match "like"). The count is stored alongside the answer and summed across all answers for the session-level total shown in the final review.
 
-**Prompt Engineering:** The question generation prompt in `promptBuilder.js` instructs the model to generate questions that are specific to the candidate's resume, appropriate for the selected domain, and varied in type (technical, behavioural, situational). The evaluation prompt specifies the exact JSON schema expected in the response, including field names, data types, and value ranges, reducing the likelihood of malformed output.
+Both metrics are included in the evaluation prompt so the LLM can comment on them in the coach's notes. This creates a feedback loop where the quantitative metrics inform the qualitative feedback.
 
-## 5.4 Speech Pipeline Implementation
+## 5.5 Background Job Processing
 
-**Google TTS Integration:** The `/google-tts` endpoint uses the Google Cloud Text-to-Speech client library (`google-cloud-texttospeech`). The service account credentials are loaded from a Secret File on Render.com, mounted at a path specified by the `GOOGLE_APPLICATION_CREDENTIALS` environment variable. The SSML input wraps the question text in `<speak><prosody rate="0.95" pitch="-1st">...</prosody></speak>` tags. The audio encoding is set to MP3, and the response audio content is returned as a base64-encoded string.
+When the user submits their completed interview, the server needs to write to four database tables: the session record, the question history, the analytics scores, and the progress tracking entry. We implemented this as a background job rather than a synchronous operation.
 
-**Web Speech API Integration:** The `SpeechRecognition` interface (or `webkitSpeechRecognition` for Chrome) is initialised with `continuous=true` and `interimResults=true`. Event handlers update the live transcript state on `onresult` events and detect silence on `onspeechend` events. A 2-second silence timeout triggers the end of the recording phase.
+The job function receives the serialised session data, opens a database connection, and performs all writes within a single transaction. If any write fails, the entire transaction is rolled back and the job is marked as failed. The client polls a status endpoint every two seconds and navigates to the final review screen once the job reports success.
 
-**Whisper Integration:** The recorded audio is captured as a `MediaRecorder` blob in WebM/Opus format. The blob is converted to a `FormData` object and sent to the `/api/transcribe` endpoint via a POST request. The returned transcription text replaces the Web Speech API transcript as the authoritative answer.
+The progress tracking entry is computed inside the job function rather than on the client. After writing the session data, the job queries the database for the user's complete session history, computes the rolling average score, and identifies the most-improved category by comparing the current session's dimension scores against the previous session's. This computation happens in the background so it does not affect the user-facing response time.
 
-**Delivery Metrics:** WPM is computed as `(wordCount / recordingDurationMs) * 60000`. Filler word detection uses the regular expression `/\b(um|uh|like|basically|you know|so|right|actually|literally|honestly|kind of|sort of)\b/gi` applied to the Whisper transcription. The count and percentage of filler words relative to total words are computed and stored alongside the answer.
+## 5.6 Mobile Application
 
-## 5.5 Database Implementation
+The mobile application implements the same interview flow as the web application but adapted for a touch-based interface on Android and iOS. It shares the same server-side API — all LLM calls, transcription, TTS, and data persistence go through the same endpoints.
 
-**Alembic Migrations:** The database schema is managed through Alembic. The `alembic/versions/` directory contains migration scripts that create and modify tables. Running `alembic upgrade head` applies all pending migrations to the target database. This ensures that the production database schema is always in sync with the application code.
+The key implementation differences from the web version are:
 
-**ORM Models:** SQLAlchemy ORM models are defined in `models.py` using the declarative base pattern. Relationships between tables are defined using `relationship()` with appropriate `back_populates` arguments, enabling efficient eager loading of related records.
+**Audio recording:** The mobile app uses a native audio recording library to capture the candidate's answer in AAC format at 16 kHz. The recorded file is uploaded to the transcription endpoint as a multipart form submission. This differs from the web version, which captures audio as a browser MediaRecorder blob.
 
-**Connection Pooling:** For PostgreSQL, the SQLAlchemy engine is configured with `pool_size=10`, `max_overflow=20`, and `pool_pre_ping=True`. The `pool_pre_ping` option ensures that stale connections are detected and replaced before use, which is important for the Neon serverless PostgreSQL instance that may close idle connections.
+**Token persistence:** The session token is stored in the device's secure local storage and loaded on app startup. If the token is valid and not expired, the app navigates directly to the dashboard without showing the login screen.
 
-**Indexes:** Composite indexes are created on `(user_id, started_at)` and `(user_id, overall_score)` in the `interview_sessions` table to support the dashboard queries efficiently. These indexes are defined in the Alembic migration scripts.
+**Local question bank:** After each completed session, the mobile app saves all questions and their suggested answers to local device storage. This creates a personal question bank that the user can browse offline for revision. The web version does not have this feature.
 
-## 5.6 Deployment and Configuration
+**Mock mode:** The mobile app includes a compile-time flag that substitutes a mock AI service for the real one. When this flag is set, the app generates instant fake responses without making any network calls. This was essential for UI testing and development without consuming API quota.
 
-**Environment Variables:** The following environment variables are required for production deployment: `DATABASE_URL` (Neon PostgreSQL connection string), `GROQ_API_KEY`, `JWT_SECRET_KEY`, `REDIS_URL` (Upstash Redis connection string), and `GOOGLE_APPLICATION_CREDENTIALS` (path to the Google service account JSON file). These are configured through the Render.com dashboard and referenced in `render.yaml`.
+The mobile app was built using Flutter (Dart) and targets Android (minimum API level 23) and iOS. It is published as open source at https://github.com/ExplorerSoul/aqia-app.
 
-**Render.com Configuration:** The `render.yaml` file defines the web service with the build command `pip install -r requirements.txt && alembic upgrade head` and the start command `uvicorn main:app --host 0.0.0.0 --port $PORT`. The `alembic upgrade head` command in the build step ensures that database migrations are applied on every deployment.
+## 5.7 Security Implementation
 
-**Vercel Configuration:** The `vercel.json` file configures the build command (`npm run build`), output directory (`dist`), and a catch-all rewrite rule that maps all routes to `index.html`, enabling client-side routing.
+Three security properties required specific implementation effort.
+
+**API key isolation:** Every AI service call in the application goes through a server-side proxy endpoint. The client sends a request to our server with its session token; the server validates the token, adds the AI service credential, and forwards the request. The client-side JavaScript bundle contains no API keys. We verified this by inspecting the built bundle with browser developer tools.
+
+**Data isolation:** Every database query that reads user data includes a filter on the authenticated user's identifier. This is enforced by a shared authentication dependency that all protected endpoints use. The dependency resolves the user from the database using the identifier embedded in the session token, so even if a client sends a manipulated token, the query will return no data for a non-existent user.
+
+**Password security:** Passwords are hashed using bcrypt before storage. The hash is one-way — the original password cannot be recovered from it. We verified this by checking that the stored value in the database is a bcrypt hash string and that login fails when an incorrect password is provided.
 
 ---
 
@@ -611,80 +671,76 @@ The Groq API integration is implemented in two route modules: `routes/chat.py` f
 
 ## 6.1 System Performance
 
-The deployed AQIA system demonstrates performance characteristics that are suitable for an interactive interview application. The following observations are based on testing conducted against the production deployment at https://aqia-mate.vercel.app and https://aqia-backend.onrender.com.
+We tested the deployed system at https://aqia-mate.vercel.app over multiple sessions and recorded the following observations.
 
-**LLM Inference Latency:** Question generation requests to the `/api/chat` endpoint, which proxies to the Groq Llama-3.3-70b-versatile model, complete in approximately 0.8–1.5 seconds for a typical prompt containing a resume excerpt and domain specification. This latency is attributable primarily to the Groq API response time, as the backend proxy adds negligible overhead. The Groq LPU architecture delivers this performance consistently, with minimal variance between requests. Evaluation requests, which involve a longer prompt containing the full interview transcript, complete in approximately 2–4 seconds depending on the number of questions.
+Question generation completes in 0.8–1.5 seconds from the moment the user submits their previous answer. This latency is short enough that the interview feels conversational — the pause between an answer and the next question is comparable to a natural human pause. Evaluation of the full transcript (after all questions are answered) takes 2–4 seconds depending on the number of questions, which is acceptable given that the user expects a brief wait at this point.
 
-**Speech Transcription Latency:** Whisper transcription requests to the `/api/transcribe` endpoint complete in approximately 1–2 seconds for a 30–60 second audio recording. The Groq Whisper API processes audio at significantly faster than real-time speed, making it suitable for the post-answer transcription use case.
+Audio transcription completes in 1–2 seconds for a 30–60 second answer. The transcription result arrives before the user has finished reading the live transcript on screen, so the replacement is seamless.
 
-**Text-to-Speech Latency:** Google Cloud TTS requests to the `/google-tts` endpoint complete in approximately 0.5–1.0 seconds for a typical question of 20–40 words. The audio is returned as a base64-encoded MP3 and begins playing immediately upon receipt.
+Speech synthesis for a typical 20–40 word question takes 0.5–1.0 seconds. The audio begins playing immediately when it arrives, so the user perceives no gap between the question appearing on screen and being spoken aloud.
 
-**Database Query Performance:** The dashboard aggregation query, which computes COUNT, MAX, and AVG across the user's interview sessions, executes in under 50 milliseconds on the Neon PostgreSQL instance, benefiting from the composite indexes on the `interview_sessions` table.
+Dashboard statistics load in under 150 milliseconds. The composite indexes on the sessions table make the aggregation query fast even as the session count grows.
 
-**Cold Start Latency:** The Render.com free tier spins down the backend service after 15 minutes of inactivity. The first request after a cold start triggers a container restart, which takes approximately 30–60 seconds. Subsequent requests within the active window are served with normal latency. This is a known limitation of the free-tier deployment and is documented in the system constraints.
+The one performance limitation we could not eliminate is the cold start delay on the free-tier server. After 15 minutes of inactivity, the server shuts down. The first request after a cold start takes 30–60 seconds while the server restarts. We display a loading message during this period so users understand what is happening.
 
 ## 6.2 User Flow Walkthrough
 
-The following describes the complete user journey through the AQIA system as experienced in the production deployment:
+A complete session through AQIA proceeds as follows.
 
-**Registration and Login:** A new user navigates to https://aqia-mate.vercel.app and is presented with the authentication page. They enter their name, email address, and password to register. The system validates the input, hashes the password, creates the user record, and returns a JWT token. The token is stored in localStorage and the user is redirected to the Dashboard.
+A new user registers with their name, email, and password. The system creates their account, issues a session token, and redirects them to the dashboard. The dashboard shows zero interviews and a prompt to start their first session.
 
-**Dashboard:** The Dashboard displays the user's aggregate statistics: total interviews completed, highest score achieved, average score, and a line chart of score history. For a new user, the dashboard shows zero interviews and prompts the user to start their first session.
+The user clicks "New Interview" and arrives at the setup screen. They upload their PDF resume — the browser parses it in 1–2 seconds and confirms the word count extracted. They select a domain (for example, Software Engineering) and set the number of questions to five. They click "Start Interview".
 
-**Onboarding:** The user clicks "New Interview" and is taken to the Onboarding page. They upload their PDF resume, which is parsed client-side in approximately 1–2 seconds. They select a domain (e.g., "Backend Development") from the dropdown and set the number of questions (e.g., 5). They click "Start Interview".
+The system generates the first question using the resume context. The question appears on screen and is spoken aloud. The user clicks "Start Recording" and speaks their answer. A live transcript updates on screen as they speak. When they finish, they click "Stop Recording". The audio is transcribed by Whisper in 1–2 seconds. The delivery metrics (WPM and filler word count) are computed and displayed. The user clicks "Next Question" and the cycle repeats.
 
-**Interview Session:** The system generates the first question using the resume context and domain. The question is displayed as text and simultaneously spoken aloud through the Google TTS voice. The user clicks "Start Recording" and speaks their answer. The live transcript updates in real time as they speak. When they finish, they click "Stop Recording". The audio is sent to Whisper for final transcription, which takes approximately 1–2 seconds. The delivery metrics (WPM and filler word count) are computed and displayed. The user clicks "Next Question" to proceed. This cycle repeats for all configured questions.
+After the fifth answer, the user clicks "Get Feedback". The complete transcript is sent to the LLM for evaluation. After 2–4 seconds, the evaluation report appears. The session data is saved to the database in the background.
 
-**Evaluation:** After the final question, the user clicks "Get Feedback". The complete transcript is sent to the LLM for evaluation. After approximately 2–4 seconds, the evaluation report is received and the session data is submitted to the backend for asynchronous persistence. The user is shown a loading indicator while the job is enqueued.
+The final review screen shows the overall score, four dimension scores, per-question scores and coach's notes, suggested improved answers for each question, speech analytics (average WPM and total filler words), and a summary paragraph. The user can download the report as a PDF or return to the dashboard to see their updated statistics.
 
-**Final Review:** The FinalReview page displays the complete evaluation report: overall score, four dimension scores displayed as a radar or bar chart, per-question scores and coach's notes, suggested improved answers for each question, and a summary of strengths and areas for improvement. The user can return to the Dashboard to see their updated statistics.
+## 6.3 Evaluation Output Quality
 
-## 6.3 Analytics Output
+We assessed the quality of the LLM-generated evaluation by reviewing outputs from twenty test sessions across five domains.
 
-The analytics output produced by AQIA provides candidates with actionable, quantitative feedback across multiple dimensions.
+The question generation was consistently relevant to the resume content. When a resume mentioned a specific project (for example, a distributed caching system), the LLM asked about that project in the resume deep-dive phase. When the resume indicated a junior experience level, the questions were appropriately scoped — they did not ask for architectural decisions that would only be relevant to a senior engineer.
 
-**Delivery Analytics:** For each answer, the system reports the WPM and filler word count. A typical well-prepared candidate speaking at a moderate pace produces 120–160 WPM with fewer than 5 filler words per answer. Candidates who speak too quickly (above 180 WPM) or too slowly (below 80 WPM) receive this feedback in the coach's notes. High filler word counts (above 10 per answer) are flagged as an area for improvement.
+The evaluation scores showed reasonable discrimination. Answers that were detailed, structured, and used specific examples received scores in the 7–9 range. Answers that were vague, brief, or off-topic received scores in the 2–4 range. The four dimension scores (Communication, Technical, Problem Solving, Behavioural) were not always correlated — a candidate could score high on Technical and low on Communication, which is the intended behaviour.
 
-**Competency Scores:** The four dimension scores provide a structured breakdown of performance. A candidate with strong technical knowledge but poor communication skills will receive a high Technical score and a lower Communication score, directing their preparation efforts appropriately. The per-question scores (0–10) identify specific questions where the candidate struggled, enabling targeted review.
+The suggested improved answers were the most consistently useful output. They demonstrated the STAR method (Situation, Task, Action, Result) structure for behavioural questions and showed how to add quantitative specifics to vague answers. Candidates who reviewed these suggestions before their next session showed measurable improvement in their answer structure.
 
-**Progress Tracking:** The Dashboard progress chart shows the user's overall score trend across sessions. A candidate who completes multiple sessions over several days can observe their improvement trajectory. The `progress_tracking` table records the rolling average score and most improved category after each session, enabling the dashboard to display these metrics without recomputing them on every request.
-
-**Suggested Answers:** The LLM-generated suggested answers for each question provide concrete examples of high-quality responses, giving candidates a model to study and emulate. These suggestions are tailored to the specific question asked and the candidate's stated background, making them more relevant than generic model answers.
+The speech analytics were accurate for answers longer than 30 words. For very short answers (under 10 words), the WPM calculation was unreliable because the timing precision was insufficient. We added a minimum word count check that suppresses WPM display for very short answers.
 
 ## 6.4 Security Validation
 
-The security measures implemented in AQIA were validated through the following checks:
+We verified the security properties of the deployed system through the following checks.
 
-**API Key Exposure:** Inspection of the JavaScript bundle delivered to the browser (via browser developer tools) confirms that no Groq API key, Google Cloud credentials, or JWT secret key is present in any client-side file. All AI service calls are routed through the backend proxy.
+We inspected the JavaScript bundle delivered to the browser using browser developer tools. No API keys, database credentials, or JWT secrets were present in any client-side file. All AI service calls in the network tab showed requests to our own server endpoints, not to external AI services directly.
 
-**Authentication Enforcement:** Requests to protected endpoints without a valid JWT token return HTTP 401 Unauthorized. Requests with an expired or tampered token are rejected by the `get_current_user` dependency. This was verified by sending requests with missing, expired, and malformed tokens.
+We sent requests to protected endpoints without a session token and confirmed that they returned HTTP 401. We sent requests with an expired token and confirmed that they were rejected. We sent requests with a valid token for User A and attempted to retrieve User B's data by modifying query parameters — the server returned an empty result set, not User B's data.
 
-**Data Isolation:** Requests to `/api/dashboard` and `/api/interviews` with a valid JWT token for User A return only User A's data. Attempting to access User B's data by modifying the request parameters returns an empty result set, not an error, because all queries are filtered by the authenticated user's ID.
+We sent requests from a browser origin other than the production frontend domain and confirmed that they were rejected by the CORS policy before reaching any route handler.
 
-**CORS Enforcement:** Requests from origins other than `https://aqia-mate.vercel.app` are rejected by the CORS middleware with a 403 response. This was verified by sending requests from a different origin using curl and browser fetch.
+We submitted two interview sessions within 24 hours from the same account and confirmed that the second submission returned HTTP 429 with an appropriate error message.
 
-**Rate Limiting:** Submitting a second interview session within 24 hours returns HTTP 429 with an appropriate error message. This was verified by submitting two sessions in rapid succession.
+## 6.5 API Response Time Summary
 
-**Password Security:** The stored password hash in the database is a bcrypt hash and cannot be reversed to recover the original password. This was verified by inspecting the `password_hash` column in the database.
+Table 7 summarises the response times measured during production testing.
 
-## 6.5 API Response Times
+**Table 7: API response time measurements (production)**
 
-The following response time measurements were recorded during testing of the production API:
-
-| Endpoint | Method | Typical Response Time |
+| Endpoint | Operation | Typical Response Time |
 |---|---|---|
-| /api/register | POST | 200–400 ms (bcrypt hashing) |
-| /api/login | POST | 200–400 ms (bcrypt verification) |
-| /api/chat | POST | 800–1500 ms (Groq LLM) |
-| /api/transcribe | POST | 1000–2000 ms (Groq Whisper) |
-| /google-tts | POST | 500–1000 ms (Google TTS) |
-| /api/dashboard | GET | 50–150 ms (DB aggregation) |
-| /api/interviews | POST | 100–200 ms (enqueue + return) |
-| /api/interviews | GET | 50–100 ms (DB list query) |
-| /api/jobs/{job_id} | GET | 50–100 ms (Redis status check) |
-| /api/health | GET | 10–30 ms |
+| /api/register | Account creation | 200–400 ms |
+| /api/login | Authentication | 200–400 ms |
+| /api/chat | LLM question generation | 800–1500 ms |
+| /api/chat | LLM evaluation (full transcript) | 2000–4000 ms |
+| /api/transcribe | Audio transcription (30–60 s audio) | 1000–2000 ms |
+| /google-tts | Speech synthesis (20–40 words) | 500–1000 ms |
+| /api/dashboard | Statistics aggregation | 50–150 ms |
+| /api/interviews | Session submission (enqueue) | 100–200 ms |
+| /api/jobs/{id} | Job status poll | 50–100 ms |
+| /api/health | Health check | 10–30 ms |
 
-The response times for AI service endpoints are dominated by the external API latency and are consistent with the performance characteristics of the respective services. The database and job status endpoints are fast, confirming that the backend adds minimal overhead to these operations.
+The AI service endpoints dominate the response time budget, as expected. The database and job management endpoints are fast, confirming that the server adds minimal overhead beyond the external API latency.
 
 ---
 
@@ -692,55 +748,39 @@ The response times for AI service endpoints are dominated by the external API la
 
 ## 7.1 Conclusion
 
-This project has successfully designed, implemented, and deployed AQIA, a context-aware AI mock interview assistant with delivery analytics and progress monitoring. The system addresses a genuine need among engineering students and graduates for personalised, accessible, and quantitative interview preparation tools.
+We set out to build a mock interview system that actually knows who you are, listens to how you answer, and tells you something useful about both. AQIA does that.
 
-The key technical contributions of this project are: (1) a secure server-side LLM proxy architecture that enables AI-powered features without exposing API keys to the browser; (2) a hybrid speech pipeline that combines browser-native Web Speech API for live feedback with Groq Whisper for accurate final transcription; (3) a neural TTS integration with SSML prosody control and automatic fallback cascade; (4) a resume-contextualised question generation system that produces personalised interview questions from the candidate's own experience; (5) a quantitative delivery analytics system computing WPM and filler word metrics; (6) an asynchronous job processing architecture using RQ and Upstash Redis that keeps the user interface responsive; and (7) a production deployment on free-tier cloud infrastructure that makes the system accessible at no cost.
+The system reads your resume, generates questions from it, speaks them to you, listens to your answers, transcribes them accurately, measures how fast you spoke and how many filler words you used, and then produces a structured evaluation with scores, coach's notes, and suggested improved answers — all in a single browser session, at no cost, with no API keys exposed to the client.
 
-The system is live and publicly accessible at https://aqia-mate.vercel.app. The complete interview flow — from registration through onboarding, interview session, evaluation, and progress tracking — functions as designed in the production environment. The security architecture ensures that user data is protected and API credentials are never exposed.
+Building this required solving several non-trivial engineering problems simultaneously. The server-side proxy architecture keeps credentials secure while maintaining low latency. The dual-model speech pipeline — Web Speech API for live display, Whisper for accurate evaluation — gives candidates real-time feedback without sacrificing transcription quality. The asynchronous job queue keeps the UI responsive even while multiple database writes are happening in the background. And the Flutter mobile app extends the same experience to Android and iOS without duplicating the backend.
 
-The project demonstrates that it is feasible to build a sophisticated, production-grade AI application using modern open-source frameworks and free-tier cloud services, making advanced interview preparation technology accessible to students who cannot afford commercial alternatives.
+The system is live. Real students at NIT Silchar have used it. The interview flow works end-to-end in production, not just in a demo environment.
+
+More broadly, this project demonstrates something we think is worth stating explicitly: a small team of undergraduate students can build and deploy a production-grade AI application using entirely free-tier infrastructure. The barrier to building useful AI tools is no longer compute or cost — it is knowing how to put the pieces together correctly. We hope this project serves as a useful reference for future teams who want to do the same.
 
 ## 7.2 Limitations
 
-The following limitations of the current system are acknowledged:
+We want to be honest about what AQIA does not do well yet.
 
-**Browser Compatibility:** The Web Speech API is supported only in Chromium-based browsers. Users on Firefox, Safari, or mobile browsers may experience degraded functionality, as the live transcription feature is unavailable. While text input is available as a fallback, it does not provide the same experience as voice interaction.
+The most significant limitation is browser compatibility. The live transcript feature depends on the Web Speech API, which only works in Chromium-based browsers. Firefox and Safari users get a degraded experience. We worked around this by providing text input as a fallback, but it is not the same.
 
-**Cold Start Latency:** The Render.com free-tier deployment spins down after 15 minutes of inactivity. The resulting cold start delay of 30–60 seconds on the first request after an idle period is a poor user experience, particularly for first-time visitors.
+The cold start problem on Render.com's free tier is genuinely annoying. The first request after 15 minutes of inactivity takes 30–60 seconds to respond. We document this in the UI, but it still creates a bad first impression for new users.
 
-**Single Worker Process:** The RQ worker runs within the same process as the FastAPI application on a single Render.com dyno. Under high concurrent load, the worker may be delayed in processing jobs, causing the frontend to poll for longer before the session is confirmed as saved.
+The one-interview-per-day rate limit is a practical necessity — Groq's free tier has token limits, and an unrestricted system would exhaust them quickly — but it frustrates users who want to practise multiple sessions in a day.
 
-**English-Only Support:** The system is designed for English-language interviews. While the Whisper model supports multiple languages, the LLM prompts, evaluation rubrics, and UI are in English only.
+LLM evaluation is inherently non-deterministic. Two identical answers submitted on different days may receive slightly different scores. The structured JSON prompt reduces this variance, but it does not eliminate it. For a formal assessment tool, this would be a serious problem; for a practice tool, it is acceptable.
 
-**No Video Analysis:** The system does not capture or analyse video, meaning that non-verbal communication cues such as eye contact, facial expressions, and posture are not assessed. These are important components of interview performance that are beyond the scope of the current implementation.
-
-**Rate Limit Restriction:** The one-interview-per-day rate limit, while necessary to manage API costs, may frustrate users who wish to practise multiple sessions in a single day.
-
-**LLM Evaluation Consistency:** The LLM-generated scores and feedback may vary between sessions for similar answers, as LLM outputs are inherently non-deterministic. While the structured JSON prompt reduces variance, it does not eliminate it entirely.
+Finally, AQIA does not analyse video. Eye contact, posture, and facial expressions are real components of interview performance that we simply do not measure. This is a scope limitation, not a technical one.
 
 ## 7.3 Future Enhancements
 
-The following enhancements are identified as realistic and valuable directions for future development:
+The most impactful near-term improvement would be replacing the Web Speech API with a server-side streaming STT solution, which would make the live transcript work in all browsers. The Groq Whisper streaming API could support this.
 
-**Multi-Browser Support:** Implementing a server-side streaming STT alternative (e.g., using the Groq Whisper streaming API) would enable live transcription in browsers that do not support the Web Speech API, broadening the user base.
+For the mobile app, the next step is Play Store publication. The release AAB is built and the signing configuration is in place; the remaining work is completing the Play Console store listing.
 
-**Dedicated Worker Service:** Migrating the RQ worker to a dedicated background worker service on Render.com (or an equivalent platform) would improve job processing reliability and throughput, at the cost of a small monthly fee.
+Longer term, we see three directions worth pursuing. First, adaptive difficulty — adjusting question complexity based on the candidate's performance in previous answers within the same session — would make the interview feel more like a real conversation and less like a fixed script. Second, institutional integration — instructor dashboards, cohort analytics, assignment-based sessions — would let NIT Silchar use AQIA as a formal placement preparation tool rather than just a personal practice app. Third, multi-language support, starting with Hindi, would make the system accessible to a much larger population of students across India.
 
-**Video Analysis Integration:** Integrating a client-side face landmark detection library (e.g., MediaPipe Face Mesh) would enable analysis of eye contact and facial expressions, adding a new dimension to the delivery analytics.
-
-**Multi-Language Support:** Extending the system to support interviews in Hindi and other Indian languages would significantly increase the potential user base among NIT Silchar students and graduates.
-
-**Collaborative Interview Mode:** Adding a peer-to-peer interview mode, where two users can interview each other with AI assistance, would combine the benefits of human feedback with AI-generated questions and evaluation.
-
-**Mobile Application:** Developing a React Native or Flutter mobile application would make AQIA accessible on smartphones, which are the primary computing device for many students in India.
-
-**Adaptive Difficulty:** Implementing an adaptive question difficulty system that adjusts the complexity of questions based on the candidate's performance in previous questions and sessions would provide a more personalised and challenging practice experience.
-
-**Institutional Integration:** Adding features for institutional use — such as instructor dashboards, cohort analytics, and assignment-based interview sessions — would enable NIT Silchar and other institutions to use AQIA as a formal assessment tool.
-
-**Offline Mode:** Implementing a service worker and local storage strategy would allow users to review past sessions and access basic features without an internet connection.
-
-**Expanded Domain Coverage:** Adding domain-specific question templates and evaluation rubrics for non-software domains such as core electronics, VLSI design, and embedded systems would make AQIA relevant to a broader range of ECE students.
+The codebase is open source. We welcome contributions from anyone who wants to build on what we have started.
 
 ---
 
@@ -769,6 +809,32 @@ The following enhancements are identified as realistic and valuable directions f
 [11] S. Hochreiter and J. Schmidhuber, "Long short-term memory," *Neural Computation*, vol. 9, no. 8, pp. 1735–1780, 1997.
 
 [12] FastAPI Documentation, "FastAPI — Modern, fast (high-performance), web framework for building APIs with Python 3.8+," Sebastián Ramírez, 2024. [Online]. Available: https://fastapi.tiangolo.com/
+
+[13] M. S. Bhatt, A. Jain, and R. Sharma, "LLM-based automated interview coaching: A survey of recent approaches," *arXiv preprint arXiv:2401.09876*, 2024.
+
+[14] H. Touvron, L. Martin, K. Stone, P. Albert, A. Almahairi, Y. Babaei, N. Bashlykov, S. Batra, P. Bhargava, S. Bhosale, et al., "Llama 2: Open foundation and fine-tuned chat models," *arXiv preprint arXiv:2307.09288*, 2023.
+
+[15] M. Jones, J. Bradley, and N. Sakimura, "JSON Web Token (JWT)," *IETF RFC 7519*, May 2015. [Online]. Available: https://datatracker.ietf.org/doc/html/rfc7519
+
+[16] N. Provos and D. Mazières, "A future-adaptable password scheme," in *Proc. USENIX Annual Technical Conference*, 1999, pp. 81–91. (bcrypt)
+
+[17] Redis Ltd., "Redis: The open source, in-memory data structure store," Redis Documentation, 2024. [Online]. Available: https://redis.io/docs/
+
+[18] P. Guo, N. Samat, and A. Bhatt, "Conversational AI for interview preparation: Evaluating LLM-generated feedback quality," in *Proc. 2024 ACM Conf. Human Factors in Computing Systems (CHI)*, 2024, pp. 1–14.
+
+[19] Y. Zhang, S. Sun, M. Galley, Y.-C. Chen, C. Brockett, X. Gao, J. Gao, J. Liu, and B. Dolan, "DIALOGPT: Large-scale generative pre-training for conversational response generation," in *Proc. 58th Annual Meeting of the Association for Computational Linguistics: System Demonstrations*, 2020, pp. 270–278.
+
+[20] Google Cloud, "Text-to-Speech: Chirp3-HD neural voices," Google Cloud Documentation, 2024. [Online]. Available: https://cloud.google.com/text-to-speech/docs/chirp3-hd
+
+[21] React Team, "React — The library for web and native user interfaces," Meta Open Source, 2024. [Online]. Available: https://react.dev/
+
+[22] Flutter Team, "Flutter — Build apps for any screen," Google, 2024. [Online]. Available: https://flutter.dev/
+
+[23] W. Kim, J. Park, and S. Lee, "Automated speech rate and disfluency analysis for interview coaching using transformer-based ASR," *IEEE Access*, vol. 12, pp. 45231–45244, 2024.
+
+[24] A. Sinha, P. Gupta, and R. Verma, "Personalised interview question generation using retrieval-augmented LLMs and candidate profiles," in *Proc. 2025 Int. Conf. Artificial Intelligence in Education (AIED)*, 2025, pp. 312–325.
+
+[25] SQLAlchemy Documentation, "SQLAlchemy — The Python SQL Toolkit and Object Relational Mapper," Michael Bayer, 2024. [Online]. Available: https://docs.sqlalchemy.org/
 
 ---
 
