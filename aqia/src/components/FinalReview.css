@@ -45,14 +45,14 @@
 
 /* Main Heading */
 .fr-heading-main {
-  font-size: 1.875rem; /* text-3xl */
+  font-size: 1.875rem;
   line-height: 2.25rem;
-  font-weight: 800; /* font-extrabold */
+  font-weight: 800;
   text-align: center;
-  margin-bottom: 2.5rem; /* mb-10 */
-  color: #ffffff; /* text-gray-900 */
-  border-bottom: 1px solid #e5e7eb; /* border-b */
-  padding-bottom: 1rem; /* pb-4 */
+  margin-bottom: 2.5rem;
+  color: #0f172a;
+  border-bottom: 1px solid #e5e7eb;
+  padding-bottom: 1rem;
 }
 
 /* Cards */
@@ -232,11 +232,11 @@
 }
 
 .fr-qa-heading {
-  font-size: 1.5rem; /* text-2xl */
-  font-weight: 700; /* font-bold */
+  font-size: 1.5rem;
+  font-weight: 700;
   text-align: center;
-  color: #ffffff; /* text-gray-900 */
-  margin-bottom: 1.5rem; /* mb-6 */
+  color: #0f172a;
+  margin-bottom: 1.5rem;
 }
 
 .fr-qa-card {
