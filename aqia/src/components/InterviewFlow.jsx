@@ -375,7 +375,7 @@ const InterviewFlow = ({ appData }) => {
       }
     };
     if (!initialized) init();
-  }, [apiKey, domain, resumeText, initialized, navigate, maxQuestions]);
+  }, [domain, resumeText, initialized, navigate, maxQuestions]);
 
   useEffect(() => {
     if (!loading && currentQuestion && started) {
